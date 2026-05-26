@@ -1,0 +1,160 @@
+<div class="flex h-screen bg-gray-100 overflow-hidden print:bg-white print:h-auto print:overflow-visible">
+
+  <!-- Sidebar: Patient List (Hidden on Print) -->
+  <aside class="w-72 bg-white border-r border-gray-200 flex flex-col print:hidden">
+    <div class="p-4 border-b border-gray-100 bg-gray-50">
+      <h2 class="text-lg font-bold text-gray-700 flex items-center gap-2">
+        <i class="pi pi-print"></i> Prescription Print
+      </h2>
+      <p class="text-xs text-gray-500 mt-1">Select patient to print Rx</p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-2 space-y-2">
+      <div *ngFor="let p of displayedPatients" (click)="selectPatient(p)"
+        class="p-3 rounded-lg cursor-pointer border transition-colors"
+        [ngClass]="selectedPatient?.id === p.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:bg-gray-50'">
+
+        <div class="flex justify-between items-start">
+          <span class="font-semibold text-gray-800">{{ p.name }}</span>
+          <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{{ p.age }}y</span>
+        </div>
+        <div class="mt-1 flex justify-between items-center">
+          <span class="text-xs text-gray-500">{{ p.visitReason }}</span>
+          <span [ngClass]="{
+                'bg-yellow-100 text-yellow-800': p.status === 'Waiting',
+                'bg-green-100 text-green-800': p.status === 'In Consultation',
+                'bg-blue-100 text-blue-800': p.status === 'Payment Done'
+              }" class="text-[10px] px-1 py-0.5 rounded font-medium">{{ p.status || 'Waiting' }}</span>
+        </div>
+      </div>
+
+      <div *ngIf="displayedPatients.length === 0" class="text-center py-10 text-gray-400 text-sm">
+        No patients found for today.
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content: Preview & Print Area -->
+  <main class="flex-1 overflow-y-auto bg-gray-200 p-8 print:p-0 print:bg-white print:overflow-visible">
+
+    <div *ngIf="!selectedPatient" class="h-full flex flex-col items-center justify-center text-gray-400 print:hidden">
+      <i class="pi pi-file text-5xl mb-4 text-gray-300"></i>
+      <p>Select a patient from the list to preview prescription</p>
+    </div>
+
+    <div *ngIf="selectedPatient" id="billing-container"
+      class="max-w-[21cm] mx-auto bg-white shadow-lg min-h-[29.7cm] p-[2cm] relative print:shadow-none print:m-0 print:w-full print:max-w-none print:h-auto print:p-0">
+
+      <!-- Print Actions (Hidden on Print) -->
+      <div class="absolute top-4 right-4 flex gap-2 print:hidden">
+        <button (click)="printRx()"
+          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 shadow-sm">
+          <i class="pi pi-print"></i> Print View
+        </button>
+      </div>
+
+      <!-- A4 CONTENT START -->
+
+      <!-- Clinic Header -->
+      <header class="border-b-2 border-blue-600 pb-4 mb-8 flex justify-between items-start gap-6">
+        <div>
+          <h1 class="text-3xl font-bold text-blue-800">ENT Care Clinic</h1>
+          <p class="text-sm text-gray-600 mt-1">
+            {{ doctorDisplayName }}
+            <span *ngIf="doctorTitle" class="text-xs text-gray-400">({{ doctorTitle }})</span>
+          </p>
+          <p class="text-xs text-gray-500" *ngIf="doctorRegistrationNumber">Reg. No: {{ doctorRegistrationNumber }}</p>
+        </div>
+        <div class="text-right text-xs text-gray-500 max-w-[170px] leading-5 ml-auto">
+          <p *ngIf="doctorClinicAddress">{{ doctorClinicAddress }}</p>
+          <p *ngIf="doctorClinicPhone">Ph: {{ doctorClinicPhone }}</p>
+          <p *ngIf="doctorTimings">Timing: {{ doctorTimings }}</p>
+        </div>
+      </header>
+
+      <!-- Patient Info -->
+      <div class="flex justify-between items-start mb-8 text-sm pb-4 border-b border-gray-100 border-dashed">
+        <div class="space-y-1">
+          <p><span class="font-semibold text-gray-600 w-20 inline-block">Name:</span> <span class="font-bold text-lg">{{
+              selectedPatient.name }}</span></p>
+          <p><span class="font-semibold text-gray-600 w-20 inline-block">Age/Sex:</span> {{ selectedPatient.age }} / {{
+            selectedPatient.gender }}</p>
+          <p><span class="font-semibold text-gray-600 w-20 inline-block">Mobile:</span> {{ selectedPatient.mobile }}</p>
+        </div>
+        <div class="text-right space-y-1">
+          <p><span class="font-semibold text-gray-600">Date:</span> {{ today | date:'mediumDate' }}</p>
+          <p><span class="font-semibold text-gray-600">ID:</span> #{{ selectedPatient.id }}</p>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="space-y-6">
+
+        <!-- Vitals / Diagnosis -->
+        <div *ngIf="selectedPatient.currentDiagnosis && selectedPatient.currentDiagnosis.length > 0">
+          <h3
+            class="font-bold text-gray-700 mb-2 uppercase text-xs tracking-wider border-b border-gray-200 inline-block pb-1">
+            Diagnosis</h3>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let d of selectedPatient.currentDiagnosis"
+              class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm font-medium">
+              {{ d }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Medicine Table -->
+        <table class="w-full text-left text-sm" *ngIf="hasPrescription(selectedPatient)">
+          <thead class="border-b border-gray-300">
+            <tr>
+              <th class="py-2 font-bold text-gray-600 w-12">#</th>
+              <th class="py-2 font-bold text-gray-600">Medicine Name</th>
+              <th class="py-2 font-bold text-gray-600 w-32">Dosage</th>
+              <th class="py-2 font-bold text-gray-600 w-24">Duration</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <!-- Assuming latest prescription is the one to print -->
+            <ng-container *ngIf="selectedPatient.prescriptions && selectedPatient.prescriptions.length > 0">
+              <tr
+                *ngFor="let med of selectedPatient.prescriptions[selectedPatient.prescriptions.length - 1].medicines; let i = index"
+                class="py-2">
+                <td class="py-3 text-gray-500">{{ i + 1 }}</td>
+                <td class="py-3 font-medium text-gray-800">{{ med.medicineName }}</td>
+                <td class="py-3">{{ med.dosage }}</td>
+                <td class="py-3">{{ med.daysToTake }} Days</td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+
+        <div *ngIf="!hasPrescription(selectedPatient)" class="text-gray-400 italic text-sm py-4">
+          No medicines prescribed yet.
+        </div>
+
+        <!-- Notes -->
+        <div class="mt-8 pt-4"
+          *ngIf="selectedPatient.prescriptions && selectedPatient.prescriptions.length > 0 && selectedPatient.prescriptions[selectedPatient.prescriptions.length - 1].notes">
+          <h4 class="font-bold text-gray-700 text-xs uppercase mb-1">Doctor's Advice:</h4>
+          <p class="text-sm text-gray-700 whitespace-pre-wrap">{{
+            selectedPatient.prescriptions[selectedPatient.prescriptions.length - 1].notes }}</p>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <footer
+        class="absolute bottom-[2cm] left-[2cm] right-[2cm] flex justify-between items-end print:bottom-0 print:left-0 print:right-0 print:relative print:mt-20">
+        <div class="text-xs text-gray-400">
+          <p>Printed on: {{ today | date:'short' }}</p>
+          <p class="mt-1 italic">Get well soon!</p>
+        </div>
+        <div class="text-center">
+          <div class="h-16 w-32 mb-2"></div> <!-- Signature Placeholder -->
+          <p class="font-bold text-gray-700 text-sm border-t border-gray-300 pt-1 inline-block px-4">{{ doctorDisplayName }}</p>
+        </div>
+      </footer>
+
+    </div>
+  </main>
+</div>

@@ -1,0 +1,27 @@
+[
+    {
+      "prescriptionId": 101,
+      "medicineId": 1,
+      "dosage": "1-0-1",
+      "daysToTake": 5
+    },
+    {
+      "prescriptionId": 101,
+      "medicineId": 2,
+      "dosage": "0-1-1",
+      "daysToTake": 3
+    },
+    {
+      "prescriptionId": 102,
+      "medicineId": 3,
+      "dosage": "1-1-1",
+      "daysToTake": 10
+    },
+    {
+      "prescriptionId": 102,
+      "medicineId": 4,
+      "dosage": "1-0-0",
+      "daysToTake": 7
+    }
+  ]
+  

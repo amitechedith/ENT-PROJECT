@@ -1,0 +1,125 @@
+[
+  {
+    "id": 1,
+    "name": "Ravi Kumar",
+    "age": 42,
+    "gender": "Male",
+    "mobile": "9876543210",
+    "visitReason": "Fever and throat pain",
+    "status": "Payment Done",
+    "currentDiagnosis": [
+      "Throat Pain"
+    ],
+    "medicalBackground": "No known allergies. Previous surgery for appendicitis in 2015."
+  },
+  {
+    "id": 2,
+    "name": "Anjali Sharma",
+    "age": 35,
+    "gender": "Female",
+    "mobile": "9876501123",
+    "visitReason": "Dizziness and mild headache",
+    "status": "In Consultation",
+    "currentDiagnosis": [
+      "Fever"
+    ],
+    "medicalBackground": "No known allergies. Previous surgery for appendicitis in 2015."
+  },
+  {
+    "id": 3,
+    "name": "Amit Kumar",
+    "age": 42,
+    "gender": "Male",
+    "mobile": "9876543210",
+    "visitReason": "Fever and throat pain",
+    "status": "Waiting",
+    "currentDiagnosis": [
+      "Throat Pain"
+    ],
+    "medicalBackground": "No known allergies. Previous surgery for appendicitis in 2015."
+  },
+  {
+    "id": 4,
+    "name": "Manali Sharma",
+    "age": 35,
+    "gender": "Female",
+    "mobile": "9876501123",
+    "visitReason": "Dizziness and mild headache"
+  },
+  {
+    "id": 5,
+    "name": "Ravi Kumar",
+    "age": 42,
+    "gender": "Male",
+    "mobile": "9876543210",
+    "visitReason": "Fever and throat pain"
+  },
+  {
+    "id": 6,
+    "name": "Anjali Sharma",
+    "age": 35,
+    "gender": "Female",
+    "mobile": "9876501123",
+    "visitReason": "Dizziness and mild headache"
+  },
+  {
+    "id": 7,
+    "name": "Amit Kumar",
+    "age": 42,
+    "gender": "Male",
+    "mobile": "9876543210",
+    "visitReason": "Fever and throat pain"
+  },
+  {
+    "id": 8,
+    "name": "Manali Sharma",
+    "age": 35,
+    "gender": "Female",
+    "mobile": "9876501123",
+    "visitReason": "Dizziness and mild headache"
+  },
+  {
+    "id": 9,
+    "name": "Test Patient 1",
+    "age": 30,
+    "gender": "Male",
+    "mobile": "9988776655",
+    "visitReason": "General Checkup",
+    "status": "Waiting",
+    "latestVisitDate": "2025-12-28",
+    "consultationFee": 500
+  },
+  {
+    "id": 10,
+    "name": "Test Patient 2",
+    "age": 25,
+    "gender": "Female",
+    "mobile": "1122334455",
+    "visitReason": "Cold and Cough",
+    "status": "In Consultation",
+    "latestVisitDate": "2025-12-28",
+    "consultationFee": 400
+  },
+  {
+    "id": 11,
+    "name": "Test Patient 3",
+    "age": 45,
+    "gender": "Male",
+    "mobile": "5566778899",
+    "visitReason": "Follow up",
+    "status": "Payment Done",
+    "latestVisitDate": "2025-12-28",
+    "consultationFee": 0
+  },
+  {
+    "id": 12,
+    "name": "Test Patient 4",
+    "age": 50,
+    "gender": "Female",
+    "mobile": "6677889900",
+    "visitReason": "Ear Pain",
+    "status": "Waiting",
+    "latestVisitDate": "2025-12-28",
+    "consultationFee": 300
+  }
+]

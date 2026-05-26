@@ -1,0 +1,16 @@
+[
+  {
+    "id": 101,
+    "patientId": 1,
+    "date": "2025-10-30T09:45:00.000Z",
+    "notes": "Mild viral infection, advised rest and hydration.",
+    "consultationFee": 300
+  },
+  {
+    "id": 102,
+    "patientId": 2,
+    "date": "2025-10-29T15:20:00.000Z",
+    "notes": "Vertigo symptoms, to continue Betahistine.",
+    "consultationFee": 350
+  }
+]

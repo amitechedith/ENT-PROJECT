@@ -1,0 +1,38 @@
+1) Reception Page
+
+Add sorting on table
+Appointment should be date-wise - make calender icon like in teams
+Payment Amount - Fees
+Make Male - M , Gender - Sex
+Add refresh button
+Only delete - For status Waiting
+
+Create Que Table - 
+id - autoincrement/unique
+Date (DD-MM-YYYY)
+queNumber
+patientId
+patientStatus -- (Plz remove from patient table)
+visitReason -- (Plz remove from patient table)
+currentDiagnosis -- (Plz remove from patient table)
+createdDate
+updatedDate
+
+prescriptions table -
+id
+queTableId
+Fee
+Cash / UPI - or both
+paymentStatus - Paid / Unpaid / Partial Paid - on hover amount should display
+
+2) Doctor Page
+Same as Reception but remove actions
+
+add : visitReason
+
+Consultation Fee - for new patient and for regular patient
+
+3) Billing - Make doctor bill seperate and medical bill seperate
+remove price from UI
+
+Doctor's prescription per user per day

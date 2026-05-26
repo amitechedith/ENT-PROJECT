@@ -1,0 +1,297 @@
+<div class="flex h-full min-h-0 bg-gray-50 overflow-hidden">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white border-r border-gray-200 flex flex-col h-full min-h-0 overflow-hidden">
+    <div class="p-6 border-b border-gray-100">
+      <h2 class="text-2xl font-bold text-blue-600 flex items-center gap-2">
+        <i class="pi pi-heart-fill"></i> Doctor
+      </h2>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">
+        ENT Specialist
+      </p>
+    </div>
+
+    <!-- Date Filter in Sidebar -->
+    <div class="p-4 bg-blue-50/50 border-b border-blue-100">
+      <label class="block text-xs font-semibold text-blue-600 uppercase mb-2">Filter Date</label>
+      <div class="flex items-center gap-2 bg-white rounded-md border border-blue-200 p-1">
+        <p-calendar [(ngModel)]="selectedDate" (ngModelChange)="onDateChange()" dateFormat="yy-mm-dd" [showIcon]="true"
+          styleClass="w-full border-0" inputStyleClass="w-full text-sm border-0 focus:ring-0 p-1" [touchUI]="true"
+          appendTo="body">
+        </p-calendar>
+      </div>
+    </div>
+
+    <div class="p-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+        Patients ({{ displayedPatients.length }})
+      </h3>
+
+      <div class="space-y-2">
+        <div *ngFor="let p of displayedPatients" (click)="selectPatient(p)"
+          class="p-3 rounded-lg cursor-pointer transition-all border group" [ngClass]="selectedPatient?.id === p.id 
+            ? 'bg-blue-50 border-blue-200 shadow-sm' 
+            : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'">
+          <div class="flex justify-between items-start mb-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded" *ngIf="p.tokenNumber">#{{
+                p.tokenNumber }}</span>
+              <span class="font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+                {{ p.name }}
+              </span>
+            </div>
+            <span class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+              {{ p.age }}y
+            </span>
+          </div>
+          <p class="text-xs text-gray-500 truncate">
+            {{ p.visitReason }}
+          </p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-gray-400 flex items-center gap-1">
+              <i class="pi pi-clock text-[10px]"></i> {{ p.latestVisitDate }}
+            </p>
+            <span [ngClass]="{
+                'bg-yellow-100 text-yellow-800': p.status === 'Waiting',
+                'bg-green-100 text-green-800': p.status === 'In Consultation',
+                'bg-gray-100 text-gray-800': p.status === 'Payment Done'
+              }" class="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide">
+              {{ p.status || 'Waiting' }}
+            </span>
+          </div>
+        </div>
+
+        <div *ngIf="displayedPatients.length === 0" class="text-center py-8 text-gray-400 text-sm">
+          No patients found for this date.
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-white/50 relative">
+
+    <div *ngIf="!selectedPatient" class="flex flex-col items-center justify-center h-full text-center text-gray-400">
+      <div class="bg-blue-50 p-6 rounded-full mb-4">
+        <i class="pi pi-user text-4xl text-blue-200"></i>
+      </div>
+      <p class="text-lg font-medium text-gray-600">Select a patient to start consultation</p>
+    </div>
+
+    <!-- Patient Detail View -->
+    <div *ngIf="selectedPatient" class="flex-1 flex flex-col h-full min-h-0 overflow-hidden animate-fadeIn">
+
+      <!-- Top Bar -->
+      <header class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
+        <div>
+          <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            {{ selectedPatient.name }}
+            <span class="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {{ selectedPatient.gender }}, {{ selectedPatient.age }}y
+            </span>
+          </h1>
+          <p class="text-sm text-gray-500 mt-0.5">
+            Reason: <span class="text-gray-700 font-medium">{{ selectedPatient.visitReason }}</span>
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button pButton icon="pi pi-chevron-left" class="p-button-text p-button-rounded p-button-secondary"
+            [disabled]="!hasPreviousPatient()" (click)="goToPreviousPatient()" pTooltip="Previous Patient"></button>
+
+          <button pButton icon="pi pi-chevron-right" class="p-button-text p-button-rounded p-button-secondary"
+            [disabled]="!hasNextPatient()" (click)="goToNextPatient()" pTooltip="Next Patient"></button>
+
+          <div class="h-6 w-px bg-gray-200 mx-1"></div>
+
+          <button pButton label="Complete" icon="pi pi-check" class="p-button-success" (click)="saveChanges()"></button>
+        </div>
+      </header>
+
+      <!-- Scrollable Content -->
+      <div class="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 bg-gray-50/50">
+
+        <!-- Info & Vitals Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <!-- Key Info -->
+          <p-card styleClass="h-full shadow-sm border-0 compact-card">
+            <ng-template pTemplate="header">
+              <div class="px-4 py-2.5 border-b border-gray-50">
+                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Patient Info</h3>
+              </div>
+            </ng-template>
+            <div class="flex flex-col gap-2.5 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500">Mobile</span>
+                <span class="font-medium text-gray-800">{{ selectedPatient.mobile }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Last Visit</span>
+                <span class="font-medium text-gray-800">{{ getPatientLastVisit(selectedPatient) }}</span>
+              </div>
+            </div>
+          </p-card>
+
+          <!-- Diagnosis Input -->
+          <div class="md:col-span-2">
+            <p-card styleClass="h-full shadow-sm border-0 compact-card diagnosis-card">
+              <ng-template pTemplate="header">
+                <div class="px-4 py-2.5 border-b border-gray-50 flex justify-between items-center">
+                  <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Diagnosis & History</h3>
+                </div>
+              </ng-template>
+
+              <div class="space-y-3">
+                <!-- Current Diagnosis -->
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Diagnosis</label>
+                  <p-autoComplete #diagAuto [(ngModel)]="selectedPatient.currentDiagnosis"
+                    [suggestions]="filteredDiagnoses" (completeMethod)="searchDiagnosis($event)" [multiple]="true"
+                    [dropdown]="true" placeholder="Select or Type & Enter..." class="w-full compact-autocomplete" appendTo="body"
+                    (onFocus)="openDiagnosisDropdown()" (onSelect)="onDiagnosisSelect($event)">
+                  </p-autoComplete>
+                </div>
+
+                <!-- Medical Background -->
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Medical Background</label>
+                  <textarea pInputTextarea rows="2" class="w-full text-sm compact-textarea"
+                    [(ngModel)]="selectedPatient.medicalBackground"
+                    placeholder="Allergies, chronic conditions..."></textarea>
+                </div>
+              </div>
+            </p-card>
+          </div>
+        </div>
+
+        <!-- Previous Visit Notes -->
+        <p-card styleClass="shadow-sm border-0">
+          <ng-template pTemplate="header">
+            <div class="px-4 py-3 border-b border-gray-50 bg-yellow-50/50">
+              <h3 class="text-sm font-bold text-yellow-700 uppercase tracking-wide flex items-center gap-2">
+                <i class="pi pi-history"></i> Last Visit Notes
+              </h3>
+            </div>
+          </ng-template>
+
+          <ng-container *ngIf="getLastVisitDetails(selectedPatient) as lastVisit; else noHist">
+            <div class="flex justify-between text-xs text-gray-400 mb-1">
+              <span>{{ lastVisit.date }}</span>
+            </div>
+            <p class="text-sm text-gray-600 italic">
+              {{ lastVisit.notes }}
+            </p>
+          </ng-container>
+          <ng-template #noHist>
+            <p class="text-sm text-gray-400 italic">No previous visit notes available.</p>
+          </ng-template>
+        </p-card>
+
+        <!-- Prescription Section -->
+        <p-card styleClass="shadow-sm border-0 compact-card">
+          <ng-template pTemplate="header">
+            <div class="px-4 py-2.5 border-b border-gray-50">
+              <h3 class="text-sm font-bold text-blue-600 uppercase tracking-wide flex items-center gap-2">
+                <i class="pi pi-file-edit"></i> Prescription
+              </h3>
+            </div>
+          </ng-template>
+
+          <!-- Medicines Table -->
+          <div *ngIf="selectedPatient.prescriptions && selectedPatient.prescriptions.length > 0">
+            <div *ngFor="let pres of selectedPatient.prescriptions; let last = last">
+              <ng-container *ngIf="last"> <!-- Only show current prescription edit -->
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs">
+                      <tr>
+                        <th class="p-3 w-1/2">Medicine</th>
+                        <th class="p-3 w-1/4">Dosage</th>
+                        <th class="p-3 w-1/6">Days</th>
+                        <th class="p-3 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                      <tr *ngFor="let med of pres.medicines; let i=index; trackBy: trackByIndex"
+                        class="group hover:bg-gray-50">
+                        <td class="p-3">
+                          <!-- Medicine AutoComplete -->
+                          <p-autoComplete #medAuto [(ngModel)]="med.medicineName" [suggestions]="filteredMedicines"
+                            (completeMethod)="searchMedicine($event)" [dropdown]="true"
+                            placeholder="Select or Type Medicine" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openMedicineDropdown()"
+                            (onSelect)="onMedicineSelect($event)">
+                          </p-autoComplete>
+                        </td>
+                        <td class="p-3">
+                          <p-autoComplete #dosageAuto [(ngModel)]="med.dosage" [suggestions]="filteredDosages"
+                            (completeMethod)="searchDosage($event)" [dropdown]="true"
+                            placeholder="Select or Type Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openDosageDropdown()"
+                            (onSelect)="onDosageSelect($event)">
+                          </p-autoComplete>
+                        </td>
+                        <td class="p-3">
+                          <input pInputText type="number" [(ngModel)]="med.daysToTake" class="w-full text-center" />
+                        </td>
+                        <td class="p-3 text-center">
+                          <button pButton icon="pi pi-trash"
+                            class="p-button-text p-button-rounded p-button-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                            (click)="removeMedicine(i)"></button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <!-- No Meds State -->
+                  <div *ngIf="pres.medicines.length === 0"
+                    class="text-center py-5 text-gray-400 text-sm border-t border-gray-100 border-dashed">
+                    <button type="button"
+                      class="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+                      (click)="addMedicine()"
+                      aria-label="Add Medicine">
+                      <i class="pi pi-plus text-sm"></i>
+                    </button>
+                    <p>No medicines added. Click "+" to prescribe.</p>
+                  </div>
+
+                  <div *ngIf="pres.medicines.length > 0"
+                    class="flex flex-col items-center gap-2 py-4 border-t border-gray-100">
+                    <button type="button"
+                      class="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+                      (click)="addMedicine()"
+                      aria-label="Add Medicine">
+                      <i class="pi pi-plus text-sm"></i>
+                    </button>
+                    <p class="text-sm text-gray-400">Click "+" to Add Medicine</p>
+                  </div>
+
+                  <!-- Notes & Fee -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-3 border-t border-gray-100">
+                    <div class="md:col-span-2">
+                      <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Visit Notes</label>
+                      <textarea pInputTextarea rows="2" class="w-full text-sm" [(ngModel)]="pres.notes"
+                        placeholder="Advice, observations..."></textarea>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Consultation Fee</label>
+                      <div class="p-inputgroup">
+                        <span class="p-inputgroup-addon">₹</span>
+                        <input pInputText type="number" [(ngModel)]="pres.consultationFee" class="font-bold" />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </ng-container>
+            </div>
+          </div>
+        </p-card>
+
+        <div class="h-8"></div> <!-- Spacer -->
+
+      </div>
+    </div>
+
+  </main>
+</div>

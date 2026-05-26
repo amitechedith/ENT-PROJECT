@@ -1,0 +1,17 @@
+<h2>Consultation - {{ patient?.name }}</h2>
+<div>
+  <h3>Past History</h3>
+  <div *ngFor="let pres of patient?.prescriptions">
+    <p><b>Date:</b> {{ pres.date }} - {{ pres.notes }}</p>
+  </div>
+</div>
+
+<h3>New Prescription</h3>
+<textarea [(ngModel)]="newPrescription.notes" placeholder="Notes"></textarea>
+<div *ngFor="let med of newPrescription.medicines">
+  <input [(ngModel)]="med.medicineId" placeholder="Medicine name">
+  <!-- <input [(ngModel)]="med.quantity" type="number" placeholder="Qty">
+  <input [(ngModel)]="med.price" type="number" placeholder="Price"> -->
+</div>
+<button (click)="addMedicine()">Add Medicine</button>
+<button (click)="savePrescription()">Save Prescription</button>

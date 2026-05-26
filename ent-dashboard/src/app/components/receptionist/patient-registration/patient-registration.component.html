@@ -1,0 +1,275 @@
+<!-- PATIENT LIST + ADD FORM -->
+<div class="bg-white rounded-xl shadow-lg p-6 border border-blue-100">
+  <!-- Header -->
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-semibold text-blue-700">
+      Patients
+    </h2>
+    <div class="flex items-center gap-2">
+      <label class="text-sm font-medium text-gray-700">Date:</label>
+      <p-calendar [(ngModel)]="selectedDate" (ngModelChange)="onDateChange()" dateFormat="yy-mm-dd" [showIcon]="true"
+        [style]="{'width': '160px'}" class="text-sm">
+      </p-calendar>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-lg p-6 border border-blue-100 w-full">
+    <!-- Patient Table -->
+    <p-table [value]="patients" dataKey="id" editMode="row" #dt [tableStyle]="{ 'min-width': '100%' }" class="text-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Token</th>
+          <th>Name</th>
+          <th>Mobile</th>
+          <th>Age</th>
+          <th>Gender</th>
+          <th>Visit Reason</th>
+          <th>Consultation Fee</th>
+          <th>Status</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-p let-editing="editing" let-ri="rowIndex">
+        <tr [pEditableRow]="p">
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText type="number" [(ngModel)]="p.tokenNumber" class="w-16 text-center" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                <span class="font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200"
+                  pTooltip="Click edit icon to change" tooltipPosition="top">
+                  {{ p.tokenNumber || '-' }}
+                </span>
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Name -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText [(ngModel)]="p.name" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ p.name }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Mobile -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText [(ngModel)]="p.mobile" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ p.mobile }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Age -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText type="number" [(ngModel)]="p.age" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ p.age }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Gender -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText [(ngModel)]="p.gender" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ p.gender }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Visit Reason -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText [(ngModel)]="p.visitReason" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ p.visitReason }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Consultation Fee -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <input pInputText type="number" [(ngModel)]="p.consultationFee" class="w-full" />
+              </ng-template>
+              <ng-template pTemplate="output">
+                {{ (p.consultationFee ?? 0) | currency:'INR':'symbol':'1.0-0' }}
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- Status -->
+          <td>
+            <p-cellEditor>
+              <ng-template pTemplate="input">
+                <p-dropdown [options]="statusOptions" [(ngModel)]="p.status" optionLabel="label" optionValue="value"
+                  appendTo="body" class="w-full"></p-dropdown>
+              </ng-template>
+
+              <ng-template pTemplate="output">
+                <span [ngClass]="{
+                'bg-yellow-100 text-yellow-800': p.status === 'Waiting',
+                'bg-green-100 text-green-800': p.status === 'In Consultation',
+                'bg-gray-100 text-gray-800': p.status === 'Payment Done'
+              }" class="px-2 py-1 rounded-full text-xs font-medium">
+                  {{ p.status }}
+                </span>
+
+                <!-- Info Icon for Payment Done -->
+                <i *ngIf="p.status === 'Payment Done'" class="pi pi-info-circle text-blue-500 ml-2 cursor-pointer"
+                  pTooltip="To edit/delete patient, contact the doctor" tooltipPosition="top">
+                </i>
+              </ng-template>
+            </p-cellEditor>
+          </td>
+
+          <!-- ACTION BUTTONS -->
+          <td class="text-center relative">
+            <div class="flex items-center justify-center gap-2">
+
+              <!-- Payment Button -->
+              <button *ngIf="!editing" pButton icon="pi pi-wallet"
+                class="p-button-text p-button-rounded p-button-success" [disabled]="p.status === 'Payment Done'"
+                pTooltip="Confirm Payment" tooltipPosition="top" (click)="confirmPayment(p)"></button>
+
+              <!-- 3 DOTS MENU (Visible when NOT editing) -->
+              <ng-container *ngIf="!editing">
+                <button pButton icon="pi pi-ellipsis-v" class="p-button-text p-button-rounded p-button-secondary"
+                  (click)="showMenu(menu, $event, p)">
+                </button>
+              </ng-container>
+
+              <!-- Save (Visible when editing) -->
+              <button *ngIf="editing" pButton pSaveEditableRow icon="pi pi-check" (click)="onRowSave(p)" text rounded
+                severity="success"></button>
+
+              <!-- Cancel (Visible when editing) -->
+              <button *ngIf="editing" pButton pCancelEditableRow icon="pi pi-times" text (click)="onRowCancel(p, ri)"
+                rounded severity="secondary"></button>
+
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    <!-- Context Menu attached to button clicks -->
+    <p-menu #menu [model]="menuItems" [popup]="true" appendTo="body"></p-menu>
+
+
+    <!-- Add Form -->
+    <div *ngIf="showAddForm" class="animate-fadeIn bg-blue-50/60 p-4 rounded-xl border border-blue-200 w-full mt-4">
+
+      <form (ngSubmit)="onSubmit()" #patientForm="ngForm" class="flex flex-wrap justify-center items-end gap-4">
+
+        <!-- Token Number -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">Token</label>
+          <input type="number" [(ngModel)]="patient.tokenNumber" name="tokenNumber" placeholder="#"
+            class="w-20 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition font-bold text-center bg-gray-50" />
+        </div>
+
+        <!-- Name -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">
+            Name <span class="text-red-500">*</span>
+          </label>
+          <input type="text" [(ngModel)]="patient.name" name="name" required placeholder="Full Name"
+            class="w-48 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+        </div>
+
+        <!-- Mobile -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">
+            Mobile <span class="text-red-500">*</span>
+          </label>
+          <input type="text" [(ngModel)]="patient.mobile" name="mobile" required placeholder="Mobile"
+            class="w-40 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+        </div>
+
+        <!-- Age -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">Age</label>
+          <input type="number" [(ngModel)]="patient.age" name="age" placeholder="Age"
+            class="w-20 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+        </div>
+
+        <!-- Gender -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">Gender</label>
+          <select [(ngModel)]="patient.gender" name="gender"
+            class="w-32 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm bg-white transition">
+            <option value="" disabled selected>Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- Visit Reason -->
+        <div class="flex flex-col flex-1 min-w-[160px]">
+          <label class="text-sm font-medium text-gray-700 mb-1">Visit Reason</label>
+          <input type="text" [(ngModel)]="patient.visitReason" name="visitReason" placeholder="Reason"
+            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+        </div>
+
+        <!-- Consultation Fee -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">Fee</label>
+          <input type="number" [(ngModel)]="patient.consultationFee" name="consultationFee" placeholder="Fee"
+            class="w-24 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+        </div>
+
+        <!-- Status -->
+        <div class="flex flex-col flex-1 min-w-[160px]">
+          <label class="text-sm font-medium text-gray-700 mb-1">Status</label>
+
+          <p-dropdown [options]="statusOptions" [(ngModel)]="patient.status" name="status" optionLabel="label"
+            optionValue="value" placeholder="Select status" class="w-full rounded-lg shadow-sm"></p-dropdown>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex items-center gap-2 mt-2">
+          <button type="submit" [disabled]="!patientForm.valid" pButton icon="pi pi-user-plus" label="Add"
+            class="p-button-success"></button>
+
+          <button type="button" (click)="toggleAddForm()" pButton icon="pi pi-times" label="Cancel"
+            class="p-button-secondary"></button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ADD NEW PATIENT SECTION -->
+    <div class="border-t border-blue-200 pt-4 mt-6">
+      <!-- Show button only when form is hidden -->
+      <div *ngIf="!showAddForm" class="text-center">
+        <button pButton icon="pi pi-user-plus" label="Add New Patient" class="p-button-info p-button-rounded"
+          (click)="toggleAddForm()"></button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CONFIRM DELETE DIALOG -->
+  <p-confirmDialog></p-confirmDialog>
+</div>

@@ -1,0 +1,46 @@
+:host ::ng-deep .p-dropdown {
+    width: 100%;
+}
+
+:host ::ng-deep .compact-card .p-card-body {
+    padding: 0.9rem 1rem;
+}
+
+:host ::ng-deep .compact-card .p-card-content {
+    padding: 0;
+}
+
+:host ::ng-deep .diagnosis-card .p-autocomplete,
+:host ::ng-deep .diagnosis-card .p-autocomplete-multiple,
+:host ::ng-deep .compact-autocomplete .p-autocomplete,
+:host ::ng-deep .compact-autocomplete .p-autocomplete-multiple {
+    width: 100%;
+}
+
+:host ::ng-deep .compact-autocomplete .p-inputtext,
+:host ::ng-deep .compact-autocomplete .p-autocomplete-input,
+:host ::ng-deep .compact-autocomplete .p-autocomplete-multiple-container {
+    font-size: 0.875rem;
+    min-height: 2.5rem;
+}
+
+:host ::ng-deep .compact-autocomplete .p-autocomplete-multiple-container {
+    padding: 0.25rem 0.5rem;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+:host ::ng-deep .compact-autocomplete .p-autocomplete-token {
+    margin: 0.1rem 0.2rem 0.1rem 0;
+    font-size: 0.8rem;
+}
+
+:host ::ng-deep .compact-autocomplete .p-button {
+    width: 2.4rem;
+}
+
+:host ::ng-deep .compact-textarea {
+    min-height: 2.5rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+}

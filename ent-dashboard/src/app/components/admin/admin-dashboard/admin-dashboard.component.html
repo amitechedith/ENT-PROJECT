@@ -1,0 +1,152 @@
+<div class="p-6 h-screen flex flex-col overflow-hidden">
+    <div class="flex justify-between items-center mb-6 flex-shrink-0">
+        <h2 class="text-2xl font-bold text-gray-800">Admin Dashboard</h2>
+        <button pButton label="Create New User" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+
+    <div class="card bg-white rounded-lg shadow-sm flex-1 overflow-hidden">
+        <p-table [value]="users" [tableStyle]="{'min-width': '50rem'}" [scrollable]="true"
+            scrollHeight="calc(100vh - 200px)">
+            <ng-template pTemplate="header">
+                <tr>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Mobile</th>
+                    <th>Role</th>
+                    <th>Actions</th>
+                </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-user>
+                <tr>
+                    <td>{{ user.fullName }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.mobile || '-' }}</td>
+                    <td>
+                        <span [ngClass]="{
+                        'bg-blue-100 text-blue-800': user.role === 'doctor',
+                        'bg-purple-100 text-purple-800': user.role === 'admin',
+                        'bg-yellow-100 text-yellow-800': user.role === 'receptionist',
+                        'bg-green-100 text-green-800': user.role === 'billing'
+                    }" class="px-2 py-1 rounded text-xs uppercase font-bold">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>
+                        <button pButton icon="pi pi-pencil" class="p-button-rounded p-button-text p-button-sm"
+                            [disabled]="!canEditUser(user)"
+                            (click)="showDialog(user)"></button>
+                        <button pButton icon="pi pi-trash"
+                            class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                            [disabled]="!canEditUser(user)"
+                            (click)="deleteUser(user)"></button>
+                    </td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+</div>
+
+
+<p-dialog [header]="userForm.get('id')?.value ? 'Edit User' : 'Create New User'" [(visible)]="displayDialog"
+    [modal]="true" [style]="{width: '90vw', maxWidth: '640px'}"
+    [contentStyle]="{'max-height': '75vh', 'overflow-y': 'auto', 'overflow-x': 'hidden'}"
+    [draggable]="false" [resizable]="false" [baseZIndex]="10000">
+    <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="flex flex-col gap-6 pt-2">
+
+        <div class="grid grid-cols-2 gap-4">
+            <!-- Full Name -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Full Name <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="fullName" placeholder="e.g. Dr. John Doe" />
+                <small *ngIf="userForm.get('fullName')?.touched && userForm.get('fullName')?.errors?.['required']"
+                    class="text-red-500 text-xs">Name is required.</small>
+            </div>
+
+            <!-- Role -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Role <span class="text-red-500">*</span></label>
+                <p-dropdown [options]="availableRoles" formControlName="role" appendTo="body"
+                    [style]="{'width':'100%'}"></p-dropdown>
+            </div>
+
+            <!-- Username -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Username <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="username" placeholder="johndoe" />
+                <small *ngIf="userForm.get('username')?.touched && userForm.get('username')?.errors?.['required']"
+                    class="text-red-500 text-xs">Username is required.</small>
+            </div>
+
+            <!-- Mobile -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Mobile <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="mobile" placeholder="10-digit mobile" maxlength="10" />
+                <small *ngIf="userForm.get('mobile')?.touched && userForm.get('mobile')?.invalid"
+                    class="text-red-500 text-xs">Invalid 10-digit Mobile.</small>
+            </div>
+
+            <!-- Password -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Password <span class="text-red-500">*</span></label>
+                <p-password formControlName="password" [feedback]="false" [toggleMask]="true" styleClass="w-full"
+                    inputStyleClass="w-full" placeholder="Set Password" appendTo="body"></p-password>
+                <small class="text-gray-400 text-xs">Use the eye button to show or hide the saved password.</small>
+                <small *ngIf="userForm.get('password')?.touched && userForm.get('password')?.errors?.['required']"
+                    class="text-red-500 text-xs">Password is required.</small>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Confirm Password <span class="text-red-500">*</span></label>
+                <p-password formControlName="confirmPassword" [feedback]="false" [toggleMask]="true" styleClass="w-full"
+                    inputStyleClass="w-full" placeholder="Confirm Password" appendTo="body"></p-password>
+
+                <small *ngIf="userForm.hasError('mismatch') && userForm.get('confirmPassword')?.touched"
+                    class="text-red-500 text-xs">Passwords do not match.</small>
+            </div>
+        </div>
+
+        <div *ngIf="isDoctorRole" class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Qualification / Title <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorTitle" placeholder="e.g. MBBS, MS - ENT" />
+                <small *ngIf="isInvalid('doctorTitle')" class="text-red-500 text-xs">Qualification is required.</small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Registration No. <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorRegistrationNumber" placeholder="e.g. 12345/MC" />
+                <small *ngIf="isInvalid('doctorRegistrationNumber')" class="text-red-500 text-xs">Registration number is required.</small>
+            </div>
+
+            <div class="flex flex-col gap-1 col-span-2">
+                <label class="font-semibold text-sm">Clinic Address <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorClinicAddress" placeholder="e.g. 123, Health Avenue, Medical City" />
+                <small *ngIf="isInvalid('doctorClinicAddress')" class="text-red-500 text-xs">Clinic address is required.</small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Clinic Phone <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorClinicPhone" placeholder="e.g. +91 98765 43210" />
+                <small *ngIf="isInvalid('doctorClinicPhone')" class="text-red-500 text-xs">Clinic phone is required.</small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Timings <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorTimings" placeholder="e.g. 10AM - 2PM, 5PM - 9PM" />
+                <small *ngIf="isInvalid('doctorTimings')" class="text-red-500 text-xs">Timings are required.</small>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-2 mt-2 pt-4 border-t border-gray-100">
+            <button pButton label="Cancel" type="button" class="p-button-text" (click)="displayDialog = false"></button>
+            <button pButton label="Save User" type="submit" [disabled]="userForm.invalid"></button>
+        </div>
+    </form>
+</p-dialog>
+
+<!-- Confirmation Dialog -->
+<p-confirmDialog [baseZIndex]="10000"></p-confirmDialog>
+
+<!-- Toast Notifications -->
+<p-toast position="top-right" [baseZIndex]="10001"></p-toast>

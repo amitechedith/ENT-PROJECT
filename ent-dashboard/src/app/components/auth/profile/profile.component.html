@@ -1,0 +1,56 @@
+<div class="max-w-xl mx-auto p-6">
+    <div class="flex items-center gap-3 mb-6">
+        <div
+            class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">
+            {{ currentUser?.fullName?.charAt(0) }}
+        </div>
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">My Profile</h2>
+            <p class="text-sm text-gray-500">Manage your account settings</p>
+        </div>
+    </div>
+
+    <div class="card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <form [formGroup]="profileForm" (ngSubmit)="updateProfile()" class="flex flex-col gap-5">
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-600">Username</label>
+                    <input pInputText formControlName="username" class="bg-gray-50" />
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-600">Role</label>
+                    <input pInputText formControlName="role"
+                        class="uppercase font-bold text-xs bg-gray-50 text-blue-800" />
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm text-gray-700">Full Name</label>
+                <input pInputText formControlName="fullName" />
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm text-gray-700">Mobile Number</label>
+                <input pInputText formControlName="mobile" placeholder="10-digit number" maxlength="10" />
+                <small *ngIf="profileForm.get('mobile')?.touched && profileForm.get('mobile')?.invalid"
+                    class="text-red-500">
+                    Valid 10-digit mobile required
+                </small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm text-gray-700">Password</label>
+                <input pInputText type="text" formControlName="password" />
+                <!-- Showing as text so they can see what they set -->
+                <small class="text-gray-400">You can update your password here.</small>
+            </div>
+
+            <div class="flex justify-end pt-4 border-t border-gray-100 mt-2">
+                <button pButton label="Update Profile" icon="pi pi-check" type="submit"
+                    [disabled]="profileForm.invalid"></button>
+            </div>
+        </form>
+    </div>
+</div>
