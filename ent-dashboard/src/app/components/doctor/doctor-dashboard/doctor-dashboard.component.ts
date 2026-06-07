@@ -41,6 +41,7 @@ export class DoctorDashboardComponent implements OnInit {
   @ViewChild('diagAuto') diagAuto!: AutoComplete;
   @ViewChild('medAuto') medAuto!: AutoComplete;
   @ViewChild('dosageAuto') dosageAuto!: AutoComplete;
+  @ViewChild('newMedAuto') newMedAuto!: AutoComplete;
 
   allPatients: Patient[] = [];
   displayedPatients: Patient[] = [];
@@ -56,6 +57,7 @@ export class DoctorDashboardComponent implements OnInit {
   selectedDate: Date = new Date();
 
   currentDiagnosisQuery = '';
+  newMedicineDraft: Partial<PrescriptionMedicine> = this.createNewMedicineDraft();
 
   constructor(
     private doctorData: DoctorDataService,
@@ -75,12 +77,13 @@ export class DoctorDashboardComponent implements OnInit {
     }
   }
 
-  openMedicineDropdown() {
+  openMedicineDropdown(auto?: AutoComplete) {
     // Load first 10 items
     this.filteredMedicines = this.medicines.slice(0, 10);
 
-    if (this.medAuto) {
-      this.medAuto.show();
+    const targetAuto = auto || this.medAuto;
+    if (targetAuto) {
+      targetAuto.show();
     }
   }
 
@@ -158,6 +161,7 @@ export class DoctorDashboardComponent implements OnInit {
   selectPatient(patient: Patient): void {
     this.selectedPatient = patient;
     this.ensurePrescriptionExists();
+    this.resetNewMedicineDraft();
     // Default currentDiagnosis to empty array if undefined
     if (!this.selectedPatient.currentDiagnosis) {
       this.selectedPatient.currentDiagnosis = [];
@@ -206,6 +210,62 @@ export class DoctorDashboardComponent implements OnInit {
       dosage: '1-0-1',
       daysToTake: 5,
     });
+  }
+
+  private createNewMedicineDraft(): Partial<PrescriptionMedicine> {
+    return {
+      medicineName: '',
+      dosage: '1-0-1',
+      daysToTake: 5
+    };
+  }
+
+  resetNewMedicineDraft(): void {
+    this.newMedicineDraft = this.createNewMedicineDraft();
+    if (this.newMedAuto?.inputEL?.nativeElement) {
+      this.newMedAuto.inputEL.nativeElement.value = '';
+    }
+    this.newMedAuto?.hide(true);
+  }
+
+  addDraftMedicineToPrescription(): void {
+    const pres = this.getCurrentPrescription();
+    if (!pres) return;
+
+    const medicineName = this.normalizeMasterValue(this.newMedicineDraft.medicineName);
+    if (!medicineName) return;
+
+    const daysToTake = Number(this.newMedicineDraft.daysToTake || 0);
+    const dosage = this.normalizeMasterValue(this.newMedicineDraft.dosage) || '1-0-1';
+
+    const commitMedicine = () => {
+      const alreadyAdded = pres.medicines.some(m => this.normalizeMasterValue(m.medicineName).toLowerCase() === medicineName.toLowerCase());
+      if (!alreadyAdded) {
+        pres.medicines.push({
+          prescriptionId: pres.id || 0,
+          medicineId: 0,
+          medicineName,
+          dosage,
+          daysToTake: daysToTake > 0 ? daysToTake : 5,
+        });
+      }
+
+      this.resetNewMedicineDraft();
+    };
+
+    if (!this.isValueInList(medicineName, this.medicines)) {
+      this.doctorData.addMedicine(medicineName).subscribe({
+        next: () => {
+          this.medicines.push(medicineName);
+          this.filteredMedicines = [...this.medicines];
+          commitMedicine();
+        },
+        error: (err) => console.error('Error adding medicine', err)
+      });
+      return;
+    }
+
+    commitMedicine();
   }
 
   removeMedicine(index: number): void {

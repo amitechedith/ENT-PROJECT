@@ -223,7 +223,7 @@
           </ng-template>
 
           <!-- Medicines Table -->
-          <div *ngIf="selectedPatient.prescriptions && selectedPatient.prescriptions.length > 0">
+                  <div *ngIf="selectedPatient.prescriptions && selectedPatient.prescriptions.length > 0">
             <div *ngFor="let pres of selectedPatient.prescriptions; let last = last">
               <ng-container *ngIf="last"> <!-- Only show current prescription edit -->
                 <div class="overflow-x-auto">
@@ -244,7 +244,7 @@
                           <p-autoComplete #medAuto [(ngModel)]="med.medicineName" [suggestions]="filteredMedicines"
                             (completeMethod)="searchMedicine($event)" [dropdown]="true"
                             placeholder="Select or Type Medicine" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
-                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openMedicineDropdown()"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openMedicineDropdown(medAuto)"
                             (onSelect)="onMedicineSelect($event)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
@@ -275,17 +275,10 @@
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
                                 <span class="truncate">{{ item }}</span>
-                                <button
-                                  pButton
-                                  icon="pi pi-times"
-                                  size="small"
-                                  severity="danger"
-                                  text
-                                  rounded
-                                  class="tiny-delete-btn"
+                                <button type="button" pButton icon="pi pi-times"
+                                  class="p-button-text p-button-rounded p-button-danger p-button-sm"
                                   (mousedown)="$event.preventDefault(); $event.stopPropagation()"
-                                  (click)="confirmDeleteDiagnosis(item, $event)">
-                                </button>
+                                  (click)="confirmDeleteDosage(item, $event)"></button>
                               </div>
                             </ng-template>
                           </p-autoComplete>
@@ -299,30 +292,75 @@
                             (click)="removeMedicine(i)"></button>
                         </td>
                       </tr>
+
+                      <tr class="bg-blue-50/40">
+                        <td class="p-3">
+                          <p-autoComplete #newMedAuto [(ngModel)]="newMedicineDraft.medicineName"
+                            [suggestions]="filteredMedicines" (completeMethod)="searchMedicine($event)" [dropdown]="true"
+                            placeholder="Add new medicine" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openMedicineDropdown(newMedAuto)"
+                            (onSelect)="onMedicineSelect($event)">
+                            <ng-template let-item pTemplate="item">
+                              <div class="flex items-center justify-between gap-2 w-full">
+                                <span class="truncate">{{ item }}</span>
+                                <button 
+                                  pButton
+                                  icon="pi pi-times"
+                                  size="small"
+                                  severity="danger"
+                                  text
+                                  rounded
+                                  class="tiny-delete-btn"
+                                  (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                  (click)="confirmDeleteMedicine(item, $event)"></button>
+                              </div>
+                            </ng-template>
+                            <ng-template pTemplate="footer">
+                              <div *ngIf="isNewMedicine(newMedicineDraft.medicineName)" class="border-t border-gray-100 px-3 py-2">
+                                <button type="button" pButton icon="pi pi-plus"
+                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                                  (click)="addMedicineToMaster(newMedicineDraft.medicineName || '')">
+                                  Add "{{ newMedicineDraft.medicineName?.trim() }}"
+                                </button>
+                              </div>
+                            </ng-template>
+                          </p-autoComplete>
+                        </td>
+                        <td class="p-3">
+                          <p-autoComplete [(ngModel)]="newMedicineDraft.dosage" [suggestions]="filteredDosages"
+                            (completeMethod)="searchDosage($event)" [dropdown]="true"
+                            placeholder="Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openDosageDropdown()"
+                            (onSelect)="onDosageSelect($event)">
+                            <ng-template let-item pTemplate="item">
+                              <div class="flex items-center justify-between gap-2 w-full">
+                                <span class="truncate">{{ item }}</span>
+                                <button 
+                                  pButton
+                                  icon="pi pi-times"
+                                  size="small"
+                                  severity="danger"
+                                  text
+                                  rounded
+                                  class="tiny-delete-btn"
+                                  (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                  (click)="confirmDeleteDosage(item, $event)"></button>
+                              </div>
+                            </ng-template>
+                          </p-autoComplete>
+                        </td>
+                        <td class="p-3">
+                          <input pInputText type="number" [(ngModel)]="newMedicineDraft.daysToTake" class="w-full text-center" />
+                        </td>
+                        <td class="p-3 text-center"></td>
+                      </tr>
                     </tbody>
                   </table>
 
-                  <!-- No Meds State -->
-                  <div *ngIf="pres.medicines.length === 0"
-                    class="text-center py-5 text-gray-400 text-sm border-t border-gray-100 border-dashed">
-                    <button type="button"
-                      class="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
-                      (click)="addMedicine()"
-                      aria-label="Add Medicine">
-                      <i class="pi pi-plus text-sm"></i>
-                    </button>
-                    <p>No medicines added. Click "+" to prescribe.</p>
-                  </div>
-
-                  <div *ngIf="pres.medicines.length > 0"
-                    class="flex flex-col items-center gap-2 py-4 border-t border-gray-100">
-                    <button type="button"
-                      class="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
-                      (click)="addMedicine()"
-                      aria-label="Add Medicine">
-                      <i class="pi pi-plus text-sm"></i>
-                    </button>
-                    <p class="text-sm text-gray-400">Click "+" to Add Medicine</p>
+                  <div class="flex justify-center py-4 border-t border-gray-100">
+                    <button type="button" pButton icon="pi pi-plus" label="Add Medicine"
+                      class="p-button-success p-button-sm px-4"
+                      (click)="addDraftMedicineToPrescription()"></button>
                   </div>
 
                   <!-- Notes & Fee -->
