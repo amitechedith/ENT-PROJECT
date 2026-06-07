@@ -191,7 +191,25 @@ export class BillingPageComponent implements OnInit {
     return this.doctorProfile?.doctorClinicPhone || this.doctorProfile?.mobile || '';
   }
 
+  get doctorEmergencyPhone(): string {
+    return this.doctorProfile?.mobile || this.doctorProfile?.doctorClinicPhone || '';
+  }
+
   get doctorTimings(): string {
     return this.doctorProfile?.doctorTimings || '';
+  }
+
+  get billingDateValue(): Date | string {
+    return this.selectedPatient?.latestVisitDate || this.selectedDate;
+  }
+
+  get billingDateLabel(): string {
+    return this.datePipe.transform(this.billingDateValue, 'dd/MM/yyyy') || '';
+  }
+
+  get billingId(): string {
+    const datePart = this.datePipe.transform(this.billingDateValue, 'yyyyMMdd') || this.datePipe.transform(this.today, 'yyyyMMdd') || '00000000';
+    const patientPart = String(this.selectedPatient?.id ?? '0').padStart(4, '0');
+    return `BILL-${datePart}-${patientPart}`;
   }
 }
