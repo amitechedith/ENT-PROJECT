@@ -62,7 +62,7 @@ const createTables = async () => {
                 createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        await ensureColumn(connection, 'patients', 'paymentMode', 'VARCHAR(20) NOT NULL DEFAULT `QR`');
+        await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR'");
         console.log('Patients table created/verified.');
 
         // 3. Medicines Master Table
