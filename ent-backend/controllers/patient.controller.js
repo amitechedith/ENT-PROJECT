@@ -51,8 +51,14 @@ exports.getNextToken = async (req, res) => {
 
 exports.createPatient = async (req, res) => {
     try {
-        const { name, age, gender, mobile, visitReason, tokenNumber } = req.body;
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber } = req.body;
         console.log("Create Patient Body:", req.body);
+
+        const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
+        const parsedFee = Number(consultationFee);
+        const finalConsultationFee = consultationFee === undefined || consultationFee === null || consultationFee === ''
+            ? 500
+            : (Number.isFinite(parsedFee) ? parsedFee : 500);
 
         let finalToken = tokenNumber;
         if (!finalToken) {
@@ -62,8 +68,8 @@ exports.createPatient = async (req, res) => {
         }
 
         const [result] = await db.query(
-            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, latestVisitDate, tokenNumber) VALUES (?, ?, ?, ?, ?, "Waiting", CURDATE(), ?)',
-            [name, age, gender, mobile, visitReason, finalToken]
+            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", CURDATE(), ?, ?)',
+            [name, age, gender, finalMobile, visitReason, finalToken, finalConsultationFee]
         );
         res.json({ id: result.insertId, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {

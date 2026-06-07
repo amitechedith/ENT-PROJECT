@@ -49,17 +49,7 @@ export class PatientRegistrationComponent implements OnInit {
   menuItems: MenuItem[] = [];
   selectedPatientForMenu: Patient | null = null;
 
-  patient: Patient = {
-    id: 0,
-    name: '',
-    mobile: '',
-    age: 0,
-    gender: '',
-    visitReason: '',
-    status: 'Waiting',
-    latestVisitDate: '',
-    consultationFee: 0
-  };
+  patient: Patient = this.createDefaultPatient();
 
   statusOptions = [
     { label: 'Waiting', value: 'Waiting' },
@@ -79,9 +69,24 @@ export class PatientRegistrationComponent implements OnInit {
     this.loadPatients();
   }
 
+  private createDefaultPatient(): Patient {
+    return {
+      id: 0,
+      name: '',
+      mobile: '',
+      age: 0,
+      gender: '',
+      visitReason: '',
+      status: 'Waiting',
+      latestVisitDate: '',
+      consultationFee: 500
+    };
+  }
+
   toggleAddForm() {
     this.showAddForm = !this.showAddForm;
     if (this.showAddForm) {
+      this.patient = this.createDefaultPatient();
       this.patientService.getNextToken().subscribe({
         next: (res) => {
           this.patient.tokenNumber = res.nextToken;
@@ -176,7 +181,7 @@ export class PatientRegistrationComponent implements OnInit {
           summary: 'Patient Added',
           detail: `${this.patient.name} added successfully.`,
         });
-        this.patient = { id: 0, name: '', mobile: '', age: 0, gender: '', visitReason: '', consultationFee: 0 };
+        this.patient = this.createDefaultPatient();
         this.showAddForm = false;
         this.loadPatients();
       },
