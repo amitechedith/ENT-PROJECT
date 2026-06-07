@@ -12,11 +12,16 @@ import { ToastModule } from 'primeng/toast';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
-import { CalendarModule } from 'primeng/calendar';
 import { DatePipe } from '@angular/common';
 import { PatientService } from '../../../services/patient.service';
 import { AuthService } from '../../../services/auth.service';
 
+interface DateSummary {
+  date: Date;
+  label: string;
+  count: number;
+  key: string;
+}
 
 @Component({
   selector: 'app-patient-registration',
@@ -31,8 +36,7 @@ import { AuthService } from '../../../services/auth.service';
     CardModule,
     ConfirmDialogModule,
     ToastModule,
-    MenuModule,
-    CalendarModule
+    MenuModule
   ],
   providers: [ConfirmationService, MessageService, DatePipe],
   templateUrl: './patient-registration.component.html',
@@ -43,6 +47,7 @@ export class PatientRegistrationComponent implements OnInit {
 
   allPatients: Patient[] = [];
   patients: Patient[] = [];
+  dateSummaries: DateSummary[] = [];
   showAddForm = false;
 
   selectedDate: Date = new Date();
@@ -103,6 +108,7 @@ export class PatientRegistrationComponent implements OnInit {
         console.log('Fetched patients:', patients);
         this.allPatients = patients;
         this.filterPatientsByDate();
+        this.buildDateSummaries();
       },
       error: (err) => {
         console.error("Error fetching patients", err);
@@ -129,6 +135,57 @@ export class PatientRegistrationComponent implements OnInit {
 
   onDateChange() {
     this.filterPatientsByDate();
+  }
+
+  selectDate(date: Date) {
+    this.selectedDate = new Date(date);
+    this.filterPatientsByDate();
+  }
+
+  buildDateSummaries() {
+    const dateMap = new Map<string, DateSummary>();
+    const selectedDateKey = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+
+    this.allPatients.forEach(patient => {
+      if (!patient.latestVisitDate) return;
+
+      const visitDate = new Date(patient.latestVisitDate);
+      const key = this.datePipe.transform(visitDate, 'yyyy-MM-dd');
+      if (!key) return;
+
+      const existing = dateMap.get(key);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+
+      dateMap.set(key, {
+        date: visitDate,
+        key,
+        count: 1,
+        label: this.datePipe.transform(visitDate, 'dd MMM') || key
+      });
+    });
+
+    if (selectedDateKey && !dateMap.has(selectedDateKey)) {
+      const selectedDate = new Date(this.selectedDate);
+      dateMap.set(selectedDateKey, {
+        date: selectedDate,
+        key: selectedDateKey,
+        count: 0,
+        label: this.datePipe.transform(selectedDate, 'dd MMM') || selectedDateKey
+      });
+    }
+
+    this.dateSummaries = Array.from(dateMap.values())
+      .sort((left, right) => right.date.getTime() - left.date.getTime())
+      .slice(0, 30);
+  }
+
+  isSelectedDate(date: Date): boolean {
+    const selectedDateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+    const currentDateStr = this.datePipe.transform(date, 'yyyy-MM-dd');
+    return selectedDateStr === currentDateStr;
   }
 
   showMenu(menu: any, event: any, patient: Patient) {
