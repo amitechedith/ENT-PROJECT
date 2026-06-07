@@ -40,6 +40,7 @@ const createTables = async () => {
         await ensureColumn(connection, 'users', 'doctorRegistrationNumber', 'VARCHAR(255) NULL');
         await ensureColumn(connection, 'users', 'doctorClinicAddress', 'TEXT NULL');
         await ensureColumn(connection, 'users', 'doctorClinicPhone', 'VARCHAR(50) NULL');
+        await ensureColumn(connection, 'users', 'doctorEmail', 'VARCHAR(255) NULL');
         await ensureColumn(connection, 'users', 'doctorTimings', 'VARCHAR(255) NULL');
         console.log('Users table created/verified.');
 

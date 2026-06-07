@@ -17,10 +17,10 @@ const seedData = async () => {
         // 2. Seed Users
         // Check if admin exists to avoid bad duplicates or just Ignore
         const users = [
-            ['1', 'admin', 'admin', 'System Admin', '9999999999', 'admin', null, null, null, null, null],
-            ['2', 'doctor', 'doctor', 'Dr. Amit Panchal', '9876543210', 'doctor', 'MBBS, MS - ENT', '12345/MC', '123, Health Avenue, Medical City', '+91 98765 43210', '10AM - 2PM, 5PM - 9PM'],
-            ['3', 'reception', 'reception', 'Reception Desk', '8888888888', 'receptionist', null, null, null, null, null],
-            ['4', 'billing', 'billing', 'Billing Desk', '7777777777', 'billing', null, null, null, null, null]
+            ['1', 'admin', 'admin', 'System Admin', '9999999999', 'admin', null, null, null, null, null, null],
+            ['2', 'doctor', 'doctor', 'Dr. Amit Panchal', '9876543210', 'doctor', 'MBBS, MS - ENT', '12345/MC', '123, Health Avenue, Medical City', '+91 98765 43210', 'doctor@email.com', '10AM - 2PM, 5PM - 9PM'],
+            ['3', 'reception', 'reception', 'Reception Desk', '8888888888', 'receptionist', null, null, null, null, null, null],
+            ['4', 'billing', 'billing', 'Billing Desk', '7777777777', 'billing', null, null, null, null, null, null]
         ];
 
         for (const user of users) {
@@ -28,9 +28,9 @@ const seedData = async () => {
             await connection.query(`
                 INSERT INTO users (
                     id, username, password, fullName, mobile, role,
-                    doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorTimings
-                ) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     fullName = VALUES(fullName),
                     mobile = VALUES(mobile),
@@ -39,6 +39,7 @@ const seedData = async () => {
                     doctorRegistrationNumber = VALUES(doctorRegistrationNumber),
                     doctorClinicAddress = VALUES(doctorClinicAddress),
                     doctorClinicPhone = VALUES(doctorClinicPhone),
+                    doctorEmail = VALUES(doctorEmail),
                     doctorTimings = VALUES(doctorTimings)
              `, user);
         }

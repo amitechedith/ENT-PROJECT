@@ -132,6 +132,15 @@
             </div>
 
             <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Email <span class="text-red-500">*</span></label>
+                <input pInputText formControlName="doctorEmail" placeholder="e.g. doctor@email.com" />
+                <small *ngIf="userForm.get('doctorEmail')?.touched && userForm.get('doctorEmail')?.errors?.['required']"
+                    class="text-red-500 text-xs">Email is required.</small>
+                <small *ngIf="userForm.get('doctorEmail')?.touched && userForm.get('doctorEmail')?.errors?.['email']"
+                    class="text-red-500 text-xs">Enter a valid email address.</small>
+            </div>
+
+            <div class="flex flex-col gap-1">
                 <label class="font-semibold text-sm">Timings <span class="text-red-500">*</span></label>
                 <input pInputText formControlName="doctorTimings" placeholder="e.g. 10AM - 2PM, 5PM - 9PM" />
                 <small *ngIf="isInvalid('doctorTimings')" class="text-red-500 text-xs">Timings are required.</small>

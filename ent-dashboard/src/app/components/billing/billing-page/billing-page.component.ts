@@ -195,6 +195,10 @@ export class BillingPageComponent implements OnInit {
     return this.doctorProfile?.mobile || this.doctorProfile?.doctorClinicPhone || '';
   }
 
+  get doctorEmail(): string {
+    return this.doctorProfile?.doctorEmail || '';
+  }
+
   get doctorTimings(): string {
     return this.doctorProfile?.doctorTimings || '';
   }

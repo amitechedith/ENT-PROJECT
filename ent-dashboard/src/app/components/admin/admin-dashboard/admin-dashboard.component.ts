@@ -56,6 +56,7 @@ export class AdminDashboardComponent implements OnInit {
             doctorRegistrationNumber: [''],
             doctorClinicAddress: [''],
             doctorClinicPhone: [''],
+            doctorEmail: [''],
             doctorTimings: ['']
         }, { validators: this.passwordMatchValidator });
 
@@ -89,6 +90,7 @@ export class AdminDashboardComponent implements OnInit {
             'doctorRegistrationNumber',
             'doctorClinicAddress',
             'doctorClinicPhone',
+            'doctorEmail',
             'doctorTimings'
         ];
 
@@ -99,7 +101,9 @@ export class AdminDashboardComponent implements OnInit {
             }
 
             if (this.isDoctorRole) {
-                control.setValidators([Validators.required]);
+                control.setValidators(fieldName === 'doctorEmail'
+                    ? [Validators.required, Validators.email]
+                    : [Validators.required]);
             } else {
                 control.clearValidators();
                 control.setValue('');
@@ -145,6 +149,7 @@ export class AdminDashboardComponent implements OnInit {
                 doctorRegistrationNumber: user.doctorRegistrationNumber || '',
                 doctorClinicAddress: user.doctorClinicAddress || '',
                 doctorClinicPhone: user.doctorClinicPhone || '',
+                doctorEmail: user.doctorEmail || '',
                 doctorTimings: user.doctorTimings || ''
             });
         } else {
@@ -174,6 +179,7 @@ export class AdminDashboardComponent implements OnInit {
                 doctorRegistrationNumber: formVal.role === 'doctor' ? formVal.doctorRegistrationNumber : undefined,
                 doctorClinicAddress: formVal.role === 'doctor' ? formVal.doctorClinicAddress : undefined,
                 doctorClinicPhone: formVal.role === 'doctor' ? formVal.doctorClinicPhone : undefined,
+                doctorEmail: formVal.role === 'doctor' ? formVal.doctorEmail : undefined,
                 doctorTimings: formVal.role === 'doctor' ? formVal.doctorTimings : undefined
             };
 

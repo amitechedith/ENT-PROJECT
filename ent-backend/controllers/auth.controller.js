@@ -40,6 +40,7 @@ exports.register = async (req, res) => {
             doctorRegistrationNumber,
             doctorClinicAddress,
             doctorClinicPhone,
+            doctorEmail,
             doctorTimings
         } = req.body;
 
@@ -48,7 +49,7 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        if (role === 'doctor' && (!doctorTitle || !doctorRegistrationNumber || !doctorClinicAddress || !doctorClinicPhone || !doctorTimings)) {
+        if (role === 'doctor' && (!doctorTitle || !doctorRegistrationNumber || !doctorClinicAddress || !doctorClinicPhone || !doctorEmail || !doctorTimings)) {
             return res.status(400).json({ message: 'Doctor profile fields are required for doctor role' });
         }
 
@@ -70,7 +71,7 @@ exports.register = async (req, res) => {
                     `UPDATE users
                      SET username = ?, password = ?, fullName = ?, mobile = ?, role = ?,
                          doctorTitle = ?, doctorRegistrationNumber = ?, doctorClinicAddress = ?,
-                         doctorClinicPhone = ?, doctorTimings = ?
+                         doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?
                      WHERE id = ?`,
                     [
                         username,
@@ -82,6 +83,7 @@ exports.register = async (req, res) => {
                         role === 'doctor' ? doctorRegistrationNumber : null,
                         role === 'doctor' ? doctorClinicAddress : null,
                         role === 'doctor' ? doctorClinicPhone : null,
+                        role === 'doctor' ? doctorEmail : null,
                         role === 'doctor' ? doctorTimings : null,
                         id
                     ]
@@ -94,8 +96,8 @@ exports.register = async (req, res) => {
         await db.query(
             `INSERT INTO users (
                 id, username, password, fullName, mobile, role,
-                doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorTimings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 userId,
                 username,
@@ -107,6 +109,7 @@ exports.register = async (req, res) => {
                 role === 'doctor' ? doctorRegistrationNumber : null,
                 role === 'doctor' ? doctorClinicAddress : null,
                 role === 'doctor' ? doctorClinicPhone : null,
+                role === 'doctor' ? doctorEmail : null,
                 role === 'doctor' ? doctorTimings : null
             ]
         );
@@ -123,7 +126,7 @@ exports.getUsers = async (req, res) => {
     try {
         const [users] = await db.query(`
             SELECT id, username, password, fullName, mobile, role,
-                   doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorTimings
+                   doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
             FROM users
         `);
         res.json(users);
@@ -145,6 +148,7 @@ exports.updateUser = async (req, res) => {
             doctorRegistrationNumber,
             doctorClinicAddress,
             doctorClinicPhone,
+            doctorEmail,
             doctorTimings
         } = req.body;
 
@@ -156,7 +160,7 @@ exports.updateUser = async (req, res) => {
             }
         }
 
-        if (role === 'doctor' && (!doctorTitle || !doctorRegistrationNumber || !doctorClinicAddress || !doctorClinicPhone || !doctorTimings)) {
+        if (role === 'doctor' && (!doctorTitle || !doctorRegistrationNumber || !doctorClinicAddress || !doctorClinicPhone || !doctorEmail || !doctorTimings)) {
             return res.status(400).json({ message: 'Doctor profile fields are required for doctor role' });
         }
 
@@ -165,7 +169,7 @@ exports.updateUser = async (req, res) => {
             `UPDATE users
              SET username = ?, fullName = ?, mobile = ?, password = ?, role = ?,
                  doctorTitle = ?, doctorRegistrationNumber = ?, doctorClinicAddress = ?,
-                 doctorClinicPhone = ?, doctorTimings = ?
+                 doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?
              WHERE id = ?`,
             [
                 username,
@@ -177,6 +181,7 @@ exports.updateUser = async (req, res) => {
                 role === 'doctor' ? doctorRegistrationNumber : null,
                 role === 'doctor' ? doctorClinicAddress : null,
                 role === 'doctor' ? doctorClinicPhone : null,
+                role === 'doctor' ? doctorEmail : null,
                 role === 'doctor' ? doctorTimings : null,
                 id
             ]

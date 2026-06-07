@@ -9,5 +9,6 @@ export interface User {
     doctorRegistrationNumber?: string;
     doctorClinicAddress?: string;
     doctorClinicPhone?: string;
+    doctorEmail?: string;
     doctorTimings?: string;
 }
