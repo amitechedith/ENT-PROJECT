@@ -1,5 +1,8 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common'; // Added DatePipe
+import { CommonModule, DatePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { CalendarModule } from 'primeng/calendar';
 import { DoctorDataService } from '../../../services/doctor-data.service';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
@@ -7,23 +10,31 @@ import { User } from '../../../models/user.model';
 @Component({
   selector: 'app-billing-page',
   standalone: true,
-  imports: [CommonModule],
-  providers: [DatePipe], // if needed in template
+  imports: [CommonModule, FormsModule, CalendarModule],
+  providers: [DatePipe],
   templateUrl: './billing-page.component.html'
 })
 export class BillingPageComponent implements OnInit {
   allPatients: any[] = [];
   displayedPatients: any[] = [];
   selectedPatient: any; // The patient to print
+  selectedDate: Date = new Date();
   today: Date = new Date();
   doctorProfile: User | null = null;
+  private pendingPatientId: number | null = null;
 
   constructor(
     private doctorData: DoctorDataService,
-    private authService: AuthService
+    private authService: AuthService,
+    private datePipe: DatePipe,
+    private route: ActivatedRoute
   ) { }
 
   ngOnInit() {
+    const patientIdParam = this.route.snapshot.queryParamMap.get('patientId');
+    const patientId = Number(patientIdParam);
+    this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+
     this.loadDoctorProfile();
     this.loadPatients();
   }
@@ -49,16 +60,58 @@ export class BillingPageComponent implements OnInit {
     this.doctorData.getTodaysPatients().subscribe({
       next: (data) => {
         this.allPatients = data;
-        this.displayedPatients = data;
-
-        // Auto-select first "Payment Done" patient
-        const paymentDonePatient = this.displayedPatients.find(p => p.status === 'Payment Done');
-        if (paymentDonePatient) {
-          this.selectedPatient = paymentDonePatient;
-        }
+        this.applyDateAndSelection();
       },
       error: (err) => console.error('Failed to load patients', err)
     });
+  }
+
+  applyDateAndSelection() {
+    if (this.pendingPatientId) {
+      const targetPatient = this.allPatients.find(patient => patient.id === this.pendingPatientId);
+      if (targetPatient) {
+        if (targetPatient.latestVisitDate) {
+          this.selectedDate = new Date(targetPatient.latestVisitDate);
+        }
+
+        this.filterPatientsByDate();
+        this.selectedPatient = this.displayedPatients.find(patient => patient.id === targetPatient.id) || targetPatient;
+        this.pendingPatientId = null;
+        return;
+      }
+    }
+
+    this.filterPatientsByDate();
+  }
+
+  filterPatientsByDate() {
+    if (!this.selectedDate) {
+      this.displayedPatients = [...this.allPatients];
+      return;
+    }
+
+    const selectedDateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+
+    this.displayedPatients = this.allPatients.filter(patient => {
+      if (!patient.latestVisitDate) return false;
+
+      const visitDate = new Date(patient.latestVisitDate);
+      const visitDateStr = this.datePipe.transform(visitDate, 'yyyy-MM-dd');
+      return visitDateStr === selectedDateStr;
+    });
+
+    if (!this.selectedPatient || !this.displayedPatients.some(p => p.id === this.selectedPatient.id)) {
+      this.selectedPatient = undefined;
+      const paymentDonePatient = this.displayedPatients.find(p => p.status === 'Payment Done');
+      if (paymentDonePatient) {
+        this.selectedPatient = paymentDonePatient;
+      }
+    }
+  }
+
+  onDateChange() {
+    this.selectedPatient = undefined;
+    this.filterPatientsByDate();
   }
 
   selectPatient(patient: any) {

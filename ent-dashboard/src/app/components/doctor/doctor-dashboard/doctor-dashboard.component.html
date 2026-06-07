@@ -103,6 +103,9 @@
 
           <div class="h-6 w-px bg-gray-200 mx-1"></div>
 
+          <button pButton label="Print Rx" icon="pi pi-print" class="p-button-outlined p-button-secondary"
+            [disabled]="!selectedPatient" (click)="goToBilling()" pTooltip="Open billing page for this patient"></button>
+
           <button pButton label="Complete" icon="pi pi-check" class="p-button-success" (click)="saveChanges()"></button>
         </div>
       </header>

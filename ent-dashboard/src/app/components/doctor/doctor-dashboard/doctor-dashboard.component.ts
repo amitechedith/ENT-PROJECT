@@ -1,6 +1,7 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
@@ -62,7 +63,8 @@ export class DoctorDashboardComponent implements OnInit {
   constructor(
     private doctorData: DoctorDataService,
     private datePipe: DatePipe,
-    private confirmationService: ConfirmationService
+    private confirmationService: ConfirmationService,
+    private router: Router
   ) { }
 
   ngOnInit(): void {
@@ -170,6 +172,17 @@ export class DoctorDashboardComponent implements OnInit {
 
   backToList(): void {
     this.selectedPatient = undefined;
+  }
+
+  goToBilling(patient?: Patient): void {
+    const targetPatient = patient || this.selectedPatient;
+    if (!targetPatient?.id) {
+      return;
+    }
+
+    this.router.navigate(['/billing'], {
+      queryParams: { patientId: targetPatient.id }
+    });
   }
 
   ensurePrescriptionExists() {
