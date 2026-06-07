@@ -62,6 +62,11 @@ export class PatientRegistrationComponent implements OnInit {
     { label: 'Payment Done', value: 'Payment Done' }
   ];
 
+  paymentModeOptions = [
+    { label: 'Cash', value: 'Cash' },
+    { label: 'QR', value: 'QR' }
+  ];
+
   constructor(
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
@@ -83,6 +88,7 @@ export class PatientRegistrationComponent implements OnInit {
       gender: '',
       visitReason: '',
       status: 'Waiting',
+      paymentMode: 'QR',
       latestVisitDate: '',
       consultationFee: 500
     };
@@ -106,7 +112,10 @@ export class PatientRegistrationComponent implements OnInit {
     this.patientService.getTodaysPatients().subscribe({
       next: (patients: Patient[]) => {
         console.log('Fetched patients:', patients);
-        this.allPatients = patients;
+        this.allPatients = patients.map(patient => ({
+          ...patient,
+          paymentMode: patient.paymentMode || 'QR'
+        }));
         this.filterPatientsByDate();
         this.buildDateSummaries();
       },
@@ -221,6 +230,15 @@ export class PatientRegistrationComponent implements OnInit {
 
   initEdit(patient: Patient) {
     this.table.initRowEdit(patient);
+  }
+
+  onRowClick(patient: Patient, event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, input, textarea, select, a, p-dropdown, p-calendar, .p-dropdown, .p-inputtext')) {
+      return;
+    }
+
+    this.initEdit(patient);
   }
 
   isToday(date: Date): boolean {

@@ -8,6 +8,7 @@ export interface Patient {
   age?: number;
   visitReason?: string;
   status?: string;
+  paymentMode?: 'Cash' | 'QR';
   currentDiagnosis?: string[];
   medicalBackground?: string;
   latestVisitDate?: string;

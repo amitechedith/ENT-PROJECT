@@ -54,6 +54,7 @@ const createTables = async () => {
                 mobile VARCHAR(20),
                 visitReason TEXT,
                 status VARCHAR(50) DEFAULT 'Waiting',
+                paymentMode VARCHAR(20) NOT NULL DEFAULT 'QR',
                 medicalBackground TEXT,
                 latestVisitDate DATE,
                 tokenNumber INT DEFAULT 0,

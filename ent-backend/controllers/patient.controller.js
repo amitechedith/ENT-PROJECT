@@ -11,6 +11,7 @@ exports.getPatients = async (req, res) => {
         for (let p of patients) {
             const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [p.id]);
             p.currentDiagnosis = diags.map(d => d.diagnosisName);
+            p.paymentMode = p.paymentMode || 'QR';
             // also fake prescriptions empty array for existing frontend compatibility if needed
             // p.prescriptions = []; 
         }
@@ -30,6 +31,7 @@ exports.getPatientById = async (req, res) => {
         const patient = rows[0];
         const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
         patient.currentDiagnosis = diags.map(d => d.diagnosisName);
+        patient.paymentMode = patient.paymentMode || 'QR';
 
         res.json(patient);
     } catch (error) {
@@ -51,7 +53,7 @@ exports.getNextToken = async (req, res) => {
 
 exports.createPatient = async (req, res) => {
     try {
-        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber } = req.body;
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode } = req.body;
         console.log("Create Patient Body:", req.body);
 
         const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
@@ -59,6 +61,7 @@ exports.createPatient = async (req, res) => {
         const finalConsultationFee = consultationFee === undefined || consultationFee === null || consultationFee === ''
             ? 500
             : (Number.isFinite(parsedFee) ? parsedFee : 500);
+        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
 
         let finalToken = tokenNumber;
         if (!finalToken) {
@@ -68,8 +71,8 @@ exports.createPatient = async (req, res) => {
         }
 
         const [result] = await db.query(
-            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", CURDATE(), ?, ?)',
-            [name, age, gender, finalMobile, visitReason, finalToken, finalConsultationFee]
+            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", ?, CURDATE(), ?, ?)',
+            [name, age, gender, finalMobile, visitReason, finalPaymentMode, finalToken, finalConsultationFee]
         );
         res.json({ id: result.insertId, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {
@@ -91,12 +94,13 @@ exports.updatePatientStatus = async (req, res) => {
 exports.updatePatient = async (req, res) => {
     try {
         console.log("Update Patient Body:", req.body);
-        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber } = req.body;
+        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode } = req.body;
+        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
         await db.query(`
             UPDATE patients 
-            SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, consultationFee=?, tokenNumber=?
+            SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, paymentMode=?, consultationFee=?, tokenNumber=?
             WHERE id=?
-        `, [name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, req.params.id]);
+        `, [name, age, gender, mobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, req.params.id]);
 
         res.json({ message: 'Patient updated successfully' });
     } catch (error) {
