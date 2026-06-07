@@ -44,3 +44,12 @@
     padding-top: 0.45rem;
     padding-bottom: 0.45rem;
 }
+
+.tiny-delete-btn {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+  
+  .tiny-delete-btn .pi {
+    font-size: 0.7rem !important;
+  }

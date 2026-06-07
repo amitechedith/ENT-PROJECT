@@ -47,8 +47,16 @@ export class DataService {
     return this.http.post(`${this.apiUrl}/master/medicines`, { name });
   }
 
+  deleteMedicine(name: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/master/medicines?name=${encodeURIComponent(name)}`);
+  }
+
   addDiagnosis(name: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/master/diagnoses`, { name });
+  }
+
+  deleteDiagnosis(name: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/master/diagnoses?name=${encodeURIComponent(name)}`);
   }
 
   getDosagesList(): Observable<any[]> {
@@ -57,6 +65,10 @@ export class DataService {
 
   addDosage(name: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/master/dosages`, { name });
+  }
+
+  deleteDosage(name: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/master/dosages?name=${encodeURIComponent(name)}`);
   }
 
   updatePatientDiagnosis(patientId: number, diagnoses: string[]): Observable<any> {

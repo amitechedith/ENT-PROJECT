@@ -63,8 +63,16 @@ export class DoctorDataService {
     return this.dataService.addMedicine(name);
   }
 
+  deleteMedicine(name: string): Observable<any> {
+    return this.dataService.deleteMedicine(name);
+  }
+
   addDiagnosis(name: string): Observable<any> {
     return this.dataService.addDiagnosis(name);
+  }
+
+  deleteDiagnosis(name: string): Observable<any> {
+    return this.dataService.deleteDiagnosis(name);
   }
 
   getDosagesList(): Observable<any[]> {
@@ -73,6 +81,10 @@ export class DoctorDataService {
 
   addDosage(name: string): Observable<any> {
     return this.dataService.addDosage(name);
+  }
+
+  deleteDosage(name: string): Observable<any> {
+    return this.dataService.deleteDosage(name);
   }
 
   updatePatientDiagnosis(patientId: number, diagnoses: string[]): Observable<any> {

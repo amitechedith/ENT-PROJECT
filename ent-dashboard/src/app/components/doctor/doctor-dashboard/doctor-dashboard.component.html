@@ -147,8 +147,33 @@
                   <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Diagnosis</label>
                   <p-autoComplete #diagAuto [(ngModel)]="selectedPatient.currentDiagnosis"
                     [suggestions]="filteredDiagnoses" (completeMethod)="searchDiagnosis($event)" [multiple]="true"
-                    [dropdown]="true" placeholder="Select or Type & Enter..." class="w-full compact-autocomplete" appendTo="body"
-                    (onFocus)="openDiagnosisDropdown()" (onSelect)="onDiagnosisSelect($event)">
+                    [dropdown]="true" placeholder="Select or Type & Enter..." class="w-full compact-autocomplete"
+                    appendTo="body" (onFocus)="openDiagnosisDropdown()" (onSelect)="onDiagnosisSelect($event)">
+                    <ng-template let-item pTemplate="item">
+                      <div class="flex items-center justify-between gap-2 w-full">
+                        <span class="truncate">{{ item }}</span>
+                        <button
+                          pButton
+                          icon="pi pi-times"
+                          size="small"
+                          severity="danger"
+                          text
+                          rounded
+                          class="tiny-delete-btn"
+                          (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                          (click)="confirmDeleteDiagnosis(item, $event)">
+                        </button>
+                      </div>
+                    </ng-template>
+                    <ng-template pTemplate="footer">
+                      <div *ngIf="isNewDiagnosis(currentDiagnosisQuery)" class="border-t border-gray-100 px-3 py-2">
+                        <button type="button" pButton icon="pi pi-plus"
+                          class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                          (click)="addDiagnosisToMaster(currentDiagnosisQuery)">
+                          Add "{{ currentDiagnosisQuery }}"
+                        </button>
+                      </div>
+                    </ng-template>
                   </p-autoComplete>
                 </div>
 
@@ -221,6 +246,24 @@
                             placeholder="Select or Type Medicine" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openMedicineDropdown()"
                             (onSelect)="onMedicineSelect($event)">
+                            <ng-template let-item pTemplate="item">
+                              <div class="flex items-center justify-between gap-2 w-full">
+                                <span class="truncate">{{ item }}</span>
+                                <button type="button" pButton icon="pi pi-times"
+                                  class="p-button-text p-button-rounded p-button-danger p-button-sm"
+                                  (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                  (click)="confirmDeleteMedicine(item, $event)"></button>
+                              </div>
+                            </ng-template>
+                            <ng-template pTemplate="footer">
+                              <div *ngIf="isNewMedicine(med.medicineName)" class="border-t border-gray-100 px-3 py-2">
+                                <button type="button" pButton icon="pi pi-plus"
+                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                                  (click)="addMedicineToMaster(med)">
+                                  Add "{{ med.medicineName?.trim() }}"
+                                </button>
+                              </div>
+                            </ng-template>
                           </p-autoComplete>
                         </td>
                         <td class="p-3">
@@ -229,6 +272,22 @@
                             placeholder="Select or Type Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openDosageDropdown()"
                             (onSelect)="onDosageSelect($event)">
+                            <ng-template let-item pTemplate="item">
+                              <div class="flex items-center justify-between gap-2 w-full">
+                                <span class="truncate">{{ item }}</span>
+                                <button
+                                  pButton
+                                  icon="pi pi-times"
+                                  size="small"
+                                  severity="danger"
+                                  text
+                                  rounded
+                                  class="tiny-delete-btn"
+                                  (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                  (click)="confirmDeleteDiagnosis(item, $event)">
+                                </button>
+                              </div>
+                            </ng-template>
                           </p-autoComplete>
                         </td>
                         <td class="p-3">
@@ -295,3 +354,5 @@
 
   </main>
 </div>
+
+<p-confirmDialog></p-confirmDialog>

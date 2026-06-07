@@ -6,6 +6,8 @@ import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
+import { ConfirmationService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { CalendarModule } from 'primeng/calendar';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { AutoComplete, AutoCompleteModule } from 'primeng/autocomplete'; // Added
@@ -26,11 +28,12 @@ import { PrescriptionMedicine } from '../../../models/prescription-medicine.mode
     InputTextareaModule,
     ButtonModule,
     CardModule,
+    ConfirmDialogModule,
     MultiSelectModule,
     CalendarModule,
     AutoCompleteModule // Added
   ],
-  providers: [DatePipe],
+  providers: [DatePipe, ConfirmationService],
   templateUrl: './doctor-dashboard.component.html',
   styleUrls: ['./doctor-dashboard.component.css'],
 })
@@ -52,11 +55,12 @@ export class DoctorDashboardComponent implements OnInit {
 
   selectedDate: Date = new Date();
 
-  newMedicineQuery: string = "";
+  currentDiagnosisQuery = '';
 
   constructor(
     private doctorData: DoctorDataService,
-    private datePipe: DatePipe
+    private datePipe: DatePipe,
+    private confirmationService: ConfirmationService
   ) { }
 
   ngOnInit(): void {
@@ -92,14 +96,17 @@ export class DoctorDashboardComponent implements OnInit {
   loadData() {
     this.doctorData.getAllMedicines().subscribe(meds => {
       this.medicines = meds.map(m => m.name); // Just strings
+      this.filteredMedicines = [...this.medicines];
     });
 
     this.doctorData.getDiagnosisList().subscribe(diags => {
       this.diagnosisList = diags.map(d => d.value); // Just strings
+      this.filteredDiagnoses = [...this.diagnosisList];
     });
 
     this.doctorData.getDosagesList().subscribe(dosages => {
       this.dosages = dosages.map(d => d.name); // Just strings
+      this.filteredDosages = [...this.dosages];
     });
 
     this.doctorData.getTodaysPatients().subscribe({
@@ -212,20 +219,14 @@ export class DoctorDashboardComponent implements OnInit {
 
   searchDiagnosis(event: any) {
     const query = event.query;
+    this.currentDiagnosisQuery = query || '';
 
     if (!query) {
       // Show all if empty (e.g. dropdown click)
       this.filteredDiagnoses = [...this.diagnosisList];
     } else {
       // Filter existing
-      const filtered = this.diagnosisList.filter(d => d.toLowerCase().includes(query.toLowerCase()));
-
-      // If no exact match found, add the query itself as an option to allow "Add New"
-      const exactMatch = filtered.some(d => d.toLowerCase() === query.toLowerCase());
-      if (!exactMatch) {
-        filtered.unshift(query);
-      }
-      this.filteredDiagnoses = filtered;
+      this.filteredDiagnoses = this.diagnosisList.filter(d => d.toLowerCase().includes(query.toLowerCase()));
     }
   }
 
@@ -239,13 +240,7 @@ export class DoctorDashboardComponent implements OnInit {
     if (!query) {
       this.filteredMedicines = [...this.medicines];
     } else {
-      const filtered = this.medicines.filter(m => m.toLowerCase().includes(query.toLowerCase()));
-
-      const exactMatch = filtered.some(m => m.toLowerCase() === query.toLowerCase());
-      if (!exactMatch) {
-        filtered.unshift(query);
-      }
-      this.filteredMedicines = filtered;
+      this.filteredMedicines = this.medicines.filter(m => m.toLowerCase().includes(query.toLowerCase()));
     }
   }
 
@@ -265,37 +260,42 @@ export class DoctorDashboardComponent implements OnInit {
     }
   }
 
+  confirmDeleteDiagnosis(name: string, event?: Event): void {
+    this.confirmDeletion('diagnosis', name, () => this.deleteDiagnosis(name), event);
+  }
+
+  confirmDeleteMedicine(name: string, event?: Event): void {
+    this.confirmDeletion('medicine', name, () => this.deleteMedicine(name), event);
+  }
+
+  confirmDeleteDosage(name: string, event?: Event): void {
+    this.confirmDeletion('dosage', name, () => this.deleteDosage(name), event);
+  }
+
   onDiagnosisSelect(event: any) {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     console.log('onDiagnosisSelect received:', event);
     const selectedItem = event.value || event;
     console.log('Extracted selectedItem:', selectedItem, 'Type:', typeof selectedItem);
 
-    if (selectedItem && typeof selectedItem === 'string' && !this.diagnosisList.includes(selectedItem)) {
-      console.log('Calling addDiagnosis with:', selectedItem);
-      this.doctorData.addDiagnosis(selectedItem).subscribe({
-        next: (res) => {
-          console.log('Immediately added diagnosis:', selectedItem);
-          this.diagnosisList.push(selectedItem);
-        },
-        error: (err) => console.error('Error adding diagnosis', err)
-      });
-    } else {
+    const diagnosisName = this.normalizeMasterValue(selectedItem);
+
+    if (!diagnosisName || this.isValueInList(diagnosisName, this.diagnosisList)) {
       console.log('Skipping addDiagnosis - already exists or invalid type');
+      return;
     }
+
+    this.addDiagnosisToMaster(diagnosisName);
   }
 
   onMedicineSelect(event: any) {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     const selectedItem = event.value || event;
-    if (selectedItem && typeof selectedItem === 'string' && !this.medicines.includes(selectedItem)) {
-      this.doctorData.addMedicine(selectedItem).subscribe({
-        next: (res) => {
-          console.log('Immediately added medicine:', selectedItem);
-          this.medicines.push(selectedItem);
-        },
-        error: (err) => console.error('Error adding medicine', err)
-      });
+
+    const medicineName = this.normalizeMasterValue(selectedItem);
+
+    if (medicineName && !this.isValueInList(medicineName, this.medicines)) {
+      this.addMedicineToMaster(medicineName);
     }
   }
 
@@ -311,6 +311,142 @@ export class DoctorDashboardComponent implements OnInit {
         error: (err) => console.error('Error adding dosage', err)
       });
     }
+  }
+
+  private normalizeMasterValue(value: string | null | undefined): string {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private isValueInList(value: string, list: string[]): boolean {
+    const normalizedValue = this.normalizeMasterValue(value).toLowerCase();
+    return normalizedValue.length > 0 && list.some(item => this.normalizeMasterValue(item).toLowerCase() === normalizedValue);
+  }
+
+  isNewDiagnosis(value?: string): boolean {
+    const diagnosisName = this.normalizeMasterValue(value);
+    return !!diagnosisName && !this.isValueInList(diagnosisName, this.diagnosisList);
+  }
+
+  isNewMedicine(value?: string): boolean {
+    const medicineName = this.normalizeMasterValue(value);
+    return !!medicineName && !this.isValueInList(medicineName, this.medicines);
+  }
+
+  addDiagnosisToMaster(value?: string): void {
+    const diagnosisName = this.normalizeMasterValue(value ?? this.currentDiagnosisQuery);
+    if (!diagnosisName || !this.selectedPatient) {
+      return;
+    }
+
+    if (!this.selectedPatient.currentDiagnosis) {
+      this.selectedPatient.currentDiagnosis = [];
+    }
+
+    if (!this.selectedPatient.currentDiagnosis.some(item => this.normalizeMasterValue(item).toLowerCase() === diagnosisName.toLowerCase())) {
+      this.selectedPatient.currentDiagnosis.push(diagnosisName);
+    }
+
+    if (this.isValueInList(diagnosisName, this.diagnosisList)) {
+      this.clearDiagnosisQuery();
+      return;
+    }
+
+    this.doctorData.addDiagnosis(diagnosisName).subscribe({
+      next: () => {
+        console.log('Added new diagnosis to master:', diagnosisName);
+        this.diagnosisList.push(diagnosisName);
+        this.filteredDiagnoses = [...this.diagnosisList];
+        this.clearDiagnosisQuery();
+      },
+      error: (err) => console.error('Error adding diagnosis', err)
+    });
+  }
+
+  private confirmDeletion(
+    type: 'diagnosis' | 'medicine' | 'dosage',
+    name: string,
+    accept: () => void,
+    event?: Event
+  ): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const normalizedName = this.normalizeMasterValue(name);
+    if (!normalizedName) {
+      return;
+    }
+
+    this.confirmationService.confirm({
+      message: `Delete "${normalizedName}" from the ${type} list?`,
+      header: 'Confirm Delete',
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonStyleClass: 'p-button-danger',
+      rejectButtonStyleClass: 'p-button-text',
+      accept
+    });
+  }
+
+  private deleteDiagnosis(name: string): void {
+    const normalizedName = this.normalizeMasterValue(name);
+    this.doctorData.deleteDiagnosis(normalizedName).subscribe({
+      next: () => {
+        this.diagnosisList = this.diagnosisList.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+        this.filteredDiagnoses = this.filteredDiagnoses.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+      },
+      error: (err) => console.error('Error deleting diagnosis', err)
+    });
+  }
+
+  private deleteMedicine(name: string): void {
+    const normalizedName = this.normalizeMasterValue(name);
+    this.doctorData.deleteMedicine(normalizedName).subscribe({
+      next: () => {
+        this.medicines = this.medicines.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+        this.filteredMedicines = this.filteredMedicines.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+      },
+      error: (err) => console.error('Error deleting medicine', err)
+    });
+  }
+
+  private deleteDosage(name: string): void {
+    const normalizedName = this.normalizeMasterValue(name);
+    this.doctorData.deleteDosage(normalizedName).subscribe({
+      next: () => {
+        this.dosages = this.dosages.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+        this.filteredDosages = this.filteredDosages.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
+      },
+      error: (err) => console.error('Error deleting dosage', err)
+    });
+  }
+
+  private clearDiagnosisQuery(): void {
+    this.currentDiagnosisQuery = '';
+    if (this.diagAuto?.inputEL?.nativeElement) {
+      this.diagAuto.inputEL.nativeElement.value = '';
+    }
+    this.diagAuto?.hide(true);
+  }
+
+  addMedicineToMaster(medicine: { medicineName?: string } | string): void {
+    const medicineName = this.normalizeMasterValue(
+      typeof medicine === 'string' ? medicine : medicine.medicineName
+    );
+    if (!medicineName || this.isValueInList(medicineName, this.medicines)) {
+      return;
+    }
+
+    if (typeof medicine !== 'string') {
+      medicine.medicineName = medicineName;
+    }
+
+    this.doctorData.addMedicine(medicineName).subscribe({
+      next: () => {
+        console.log('Added new medicine to master:', medicineName);
+        this.medicines.push(medicineName);
+        this.filteredMedicines = [...this.medicines];
+      },
+      error: (err) => console.error('Error adding medicine', err)
+    });
   }
 
   trackByIndex(index: number, item: any): number {
@@ -371,7 +507,9 @@ export class DoctorDashboardComponent implements OnInit {
 
     // 1. Identify and Save New Diagnoses
     const currentDiagnoses = this.selectedPatient.currentDiagnosis || [];
-    const newDiagnoses = currentDiagnoses.filter(d => !this.diagnosisList.includes(d));
+    const newDiagnoses = currentDiagnoses
+      .map(d => this.normalizeMasterValue(d))
+      .filter(d => d && !this.isValueInList(d, this.diagnosisList));
 
     newDiagnoses.forEach(d => {
       this.doctorData.addDiagnosis(d).subscribe({
@@ -393,12 +531,12 @@ export class DoctorDashboardComponent implements OnInit {
       // Check for new medicines
       // medicines array contains objects { medicineName: string... }
       currentPrescription.medicines.forEach(m => {
-        const exists = this.medicines.includes(m.medicineName);
-        if (!exists && m.medicineName) {
-          this.doctorData.addMedicine(m.medicineName).subscribe({
-            next: (res) => {
-              console.log('Added new medicine:', m.medicineName);
-              this.medicines.push(m.medicineName);
+        const medicineName = this.normalizeMasterValue(m.medicineName);
+        if (medicineName && !this.isValueInList(medicineName, this.medicines)) {
+          this.doctorData.addMedicine(medicineName).subscribe({
+            next: () => {
+              console.log('Added new medicine:', medicineName);
+              this.medicines.push(medicineName);
             }
           });
         }
