@@ -13,7 +13,6 @@ export interface Patient {
   medicalBackground?: string;
   latestVisitDate?: string;
   prescriptions?: Prescription[];
-  defaultConsultationFee?: number;
   tokenNumber?: number;
   consultationFee?: number;
 }

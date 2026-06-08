@@ -58,11 +58,11 @@ const createTables = async () => {
                 latestVisitDate DATE,
                 tokenNumber INT DEFAULT 0,
                 consultationFee DECIMAL(10, 2) DEFAULT 0,
-                defaultConsultationFee DECIMAL(10, 2) DEFAULT 500,
                 createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR'");
+        await ensureColumn(connection, 'patients', 'tokenNumber', "INT DEFAULT 0 AFTER latestVisitDate");
+        await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR' AFTER consultationFee");
         console.log('Patients table created/verified.');
 
         // 3. Medicines Master Table
