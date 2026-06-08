@@ -17,6 +17,8 @@ import { Prescription } from '../../../models/prescription.model';
 import { Medicine } from '../../../models/medicine.model';
 import { DoctorDataService } from '../../../services/doctor-data.service';
 import { PrescriptionMedicine } from '../../../models/prescription-medicine.model';
+import { ToastModule } from 'primeng/toast';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-doctor-dashboard',
@@ -32,9 +34,10 @@ import { PrescriptionMedicine } from '../../../models/prescription-medicine.mode
     ConfirmDialogModule,
     MultiSelectModule,
     CalendarModule,
+    ToastModule,
     AutoCompleteModule // Added
   ],
-  providers: [DatePipe, ConfirmationService],
+  providers: [DatePipe, ConfirmationService, MessageService],
   templateUrl: './doctor-dashboard.component.html',
   styleUrls: ['./doctor-dashboard.component.css'],
 })
@@ -64,7 +67,8 @@ export class DoctorDashboardComponent implements OnInit {
     private doctorData: DoctorDataService,
     private datePipe: DatePipe,
     private confirmationService: ConfirmationService,
-    private router: Router
+    private router: Router,
+    private messageService: MessageService
   ) { }
 
   ngOnInit(): void {
@@ -129,7 +133,7 @@ export class DoctorDashboardComponent implements OnInit {
       return;
     }
     const dateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
-
+    
     this.displayedPatients = this.allPatients.filter(p => {
       if (!p.latestVisitDate) return false;
       // Handle if backend returns Date object or string
@@ -636,8 +640,14 @@ export class DoctorDashboardComponent implements OnInit {
 
       this.doctorData.savePrescription(this.selectedPatient.id!, payload).subscribe({
         next: (res) => {
-          alert('Prescription & Data saved successfully!');
-          this.backToList();
+          // alert('Prescription & Data saved successfully!');
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Saved',
+            detail: 'Prescription & Data saved successfully!',
+            life: 1000
+          });
+          // this.backToList();
         },
         error: (err) => {
           console.error(err);
@@ -647,8 +657,14 @@ export class DoctorDashboardComponent implements OnInit {
     } else {
       if (currentDiagnoses.length > 0) {
         this.savePatientDiagnosis(this.selectedPatient.id!, currentDiagnoses);
-        alert('Diagnoses saved!');
-        this.backToList();
+        // alert('Diagnoses saved!');
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Saved',
+          detail: 'Diagnoses saved successfully!',
+          life: 1000
+        });
+        // this.backToList();
       } else {
         alert('No changes to save');
       }

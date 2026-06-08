@@ -4,9 +4,13 @@ exports.savePrescription = async (req, res) => {
     try {
         const { patientId, date, notes, nextVisitDate, medicines } = req.body;
 
+        const prescriptionDate = req.body.date
+            ? new Date(req.body.date).toISOString().split('T')[0]
+            : null;
+
         const [resPres] = await db.query(
             'INSERT INTO prescriptions (patientId, date, notes, nextVisitDate) VALUES (?, ?, ?, ?)',
-            [patientId, date, notes, nextVisitDate]
+            [patientId, prescriptionDate, notes, nextVisitDate]
         );
         const prescriptionId = resPres.insertId;
 
