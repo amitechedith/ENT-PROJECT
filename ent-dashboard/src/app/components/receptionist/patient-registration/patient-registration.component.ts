@@ -45,7 +45,6 @@ interface DateSummary {
 export class PatientRegistrationComponent implements OnInit {
   @ViewChild('dt') table!: Table;
 
-  allPatients: Patient[] = [];
   patients: Patient[] = [];
   dateSummaries: DateSummary[] = [];
   showAddForm = false;
@@ -76,7 +75,8 @@ export class PatientRegistrationComponent implements OnInit {
   ) { }
 
   ngOnInit() {
-    this.loadPatients();
+    this.loadDateSummaries();
+    this.loadPatientsForSelectedDate();
   }
 
   private createDefaultPatient(): Patient {
@@ -107,88 +107,101 @@ export class PatientRegistrationComponent implements OnInit {
     }
   }
 
-  loadPatients() {
-    console.log("Loading patients...");
-    this.patientService.getTodaysPatients().subscribe({
-      next: (patients: Patient[]) => {
-        console.log('Fetched patients:', patients);
-        this.allPatients = patients.map(patient => ({
-          ...patient,
-          paymentMode: patient.paymentMode || 'QR'
-        }));
-        this.filterPatientsByDate();
-        this.buildDateSummaries();
-      },
-      error: (err) => {
-        console.error("Error fetching patients", err);
-      }
-    });
-  }
-
-  filterPatientsByDate() {
-    if (!this.selectedDate) {
-      this.patients = this.allPatients;
-      return;
-    }
-
-    const selectedDateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
-
-    this.patients = this.allPatients.filter(p => {
-      if (!p.latestVisitDate) return false;
-      const vDate = new Date(p.latestVisitDate);
-      const visitDateStr = this.datePipe.transform(vDate, 'yyyy-MM-dd');
-      console.log(`Patient: ${p.name}, Date: ${p.latestVisitDate}, Formatted: ${visitDateStr}, Selected: ${selectedDateStr}`);
-      return visitDateStr === selectedDateStr;
-    });
-  }
-
   onDateChange() {
-    this.filterPatientsByDate();
+    this.loadPatientsForSelectedDate();
+    this.ensureSelectedDateSummary();
   }
 
   selectDate(date: Date) {
     this.selectedDate = new Date(date);
-    this.filterPatientsByDate();
+    this.loadPatientsForSelectedDate();
+    this.ensureSelectedDateSummary();
   }
 
-  buildDateSummaries() {
-    const dateMap = new Map<string, DateSummary>();
-    const selectedDateKey = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+  private loadDateSummaries(): void {
+    this.patientService.getPatientDateSummaries().subscribe({
+      next: (summaries) => {
+        this.dateSummaries = summaries
+          .map(item => {
+            const parsedDate = this.toLocalDate(item.date);
+            return {
+              date: parsedDate,
+              label: this.datePipe.transform(parsedDate, 'dd MMM') || item.date,
+              count: Number(item.count) || 0,
+              key: item.date
+            };
+          })
+          .sort((left, right) => right.date.getTime() - left.date.getTime());
 
-    this.allPatients.forEach(patient => {
-      if (!patient.latestVisitDate) return;
-
-      const visitDate = new Date(patient.latestVisitDate);
-      const key = this.datePipe.transform(visitDate, 'yyyy-MM-dd');
-      if (!key) return;
-
-      const existing = dateMap.get(key);
-      if (existing) {
-        existing.count += 1;
-        return;
+        this.ensureSelectedDateSummary();
+      },
+      error: (err) => {
+        console.error('Error fetching patient date summaries', err);
       }
-
-      dateMap.set(key, {
-        date: visitDate,
-        key,
-        count: 1,
-        label: this.datePipe.transform(visitDate, 'dd MMM') || key
-      });
     });
+  }
 
-    if (selectedDateKey && !dateMap.has(selectedDateKey)) {
-      const selectedDate = new Date(this.selectedDate);
-      dateMap.set(selectedDateKey, {
-        date: selectedDate,
-        key: selectedDateKey,
-        count: 0,
-        label: this.datePipe.transform(selectedDate, 'dd MMM') || selectedDateKey
-      });
+  private loadPatientsForSelectedDate(): void {
+    const selectedDateKey = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+    if (!selectedDateKey) {
+      this.patients = [];
+      return;
     }
 
-    this.dateSummaries = Array.from(dateMap.values())
-      .sort((left, right) => right.date.getTime() - left.date.getTime())
-      .slice(0, 30);
+    this.patientService.getPatientsByDate(selectedDateKey).subscribe({
+      next: (patients: Patient[]) => {
+        this.patients = patients.map(patient => ({
+          ...patient,
+          paymentMode: patient.paymentMode || 'QR'
+        }));
+        this.ensureSelectedDateSummary();
+      },
+      error: (err) => {
+        console.error('Error fetching patients for date', err);
+      }
+    });
+  }
+
+  private ensureSelectedDateSummary(): void {
+    const selectedDateKey = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
+    if (!selectedDateKey) {
+      return;
+    }
+
+    const selectedDate = new Date(this.selectedDate);
+    const existingIndex = this.dateSummaries.findIndex(item => item.key === selectedDateKey);
+    if (existingIndex === -1) {
+      this.dateSummaries = [
+        ...this.dateSummaries,
+        {
+          date: selectedDate,
+          label: this.datePipe.transform(selectedDate, 'dd MMM') || selectedDateKey,
+          count: 0,
+          key: selectedDateKey
+        }
+      ];
+    }
+
+    const selectedEntry = this.dateSummaries.find(item => item.key === selectedDateKey);
+    const sortedSummaries = [...this.dateSummaries]
+      .sort((left, right) => right.date.getTime() - left.date.getTime());
+
+    if (sortedSummaries.length <= 30 || !selectedEntry) {
+      this.dateSummaries = sortedSummaries.slice(0, 30);
+      return;
+    }
+
+    const trimmedSummaries = sortedSummaries.slice(0, 30);
+    if (!trimmedSummaries.some(item => item.key === selectedDateKey)) {
+      trimmedSummaries[trimmedSummaries.length - 1] = selectedEntry;
+      trimmedSummaries.sort((left, right) => right.date.getTime() - left.date.getTime());
+    }
+
+    this.dateSummaries = trimmedSummaries;
+  }
+
+  private toLocalDate(dateKey: string): Date {
+    return new Date(`${dateKey}T00:00:00`);
   }
 
   isSelectedDate(date: Date): boolean {
@@ -258,7 +271,8 @@ export class PatientRegistrationComponent implements OnInit {
         });
         this.patient = this.createDefaultPatient();
         this.showAddForm = false;
-        this.loadPatients();
+        this.loadDateSummaries();
+        this.loadPatientsForSelectedDate();
       },
       error: (err) => {
         console.error(err);
@@ -281,10 +295,10 @@ export class PatientRegistrationComponent implements OnInit {
 
   onRowSave(p: Patient) {
     if (p.id) {
-      this.patientService.updatePatient(p).subscribe({
+        this.patientService.updatePatient(p).subscribe({
         next: () => {
           this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Patient updated' });
-          this.loadPatients(); // Refresh list
+          this.loadPatientsForSelectedDate(); // Refresh selected day only
         },
         error: () => {
           this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Update failed' });
@@ -305,7 +319,8 @@ export class PatientRegistrationComponent implements OnInit {
           summary: 'Patient Deleted',
           detail: `${patient.name} has been removed.`,
         });
-        this.loadPatients();
+        this.loadDateSummaries();
+        this.loadPatientsForSelectedDate();
       },
       error: (err) => {
         this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete patient' });
@@ -333,7 +348,7 @@ export class PatientRegistrationComponent implements OnInit {
           summary: 'Payment Confirmed',
           detail: `Payment received for ${patient.name}.`
         });
-        this.loadPatients();
+        this.loadPatientsForSelectedDate();
       },
       error: (err) => {
         this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to update payment status' });

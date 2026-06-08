@@ -28,7 +28,7 @@
                         'bg-yellow-100 text-yellow-800': user.role === 'receptionist',
                         'bg-green-100 text-green-800': user.role === 'billing'
                     }" class="px-2 py-1 rounded text-xs uppercase font-bold">
-                            {{ user.role }}
+                            {{ displayRoleLabel(user.role) }}
                         </span>
                     </td>
                     <td>
@@ -155,7 +155,11 @@
 </p-dialog>
 
 <!-- Confirmation Dialog -->
-<p-confirmDialog [baseZIndex]="10000"></p-confirmDialog>
+<p-confirmDialog
+    appendTo="body"
+    [baseZIndex]="10000"
+    position="center">
+  </p-confirmDialog>
 
 <!-- Toast Notifications -->
 <p-toast position="top-right" [baseZIndex]="10001"></p-toast>

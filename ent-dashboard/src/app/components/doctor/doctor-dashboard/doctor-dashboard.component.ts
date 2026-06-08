@@ -47,9 +47,9 @@ export class DoctorDashboardComponent implements OnInit {
   @ViewChild('dosageAuto') dosageAuto!: AutoComplete;
   @ViewChild('newMedAuto') newMedAuto!: AutoComplete;
 
-  allPatients: Patient[] = [];
   displayedPatients: Patient[] = [];
   selectedPatient?: Patient;
+  private loadedPrescriptionPatientIds = new Set<number>();
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -118,60 +118,119 @@ export class DoctorDashboardComponent implements OnInit {
       this.filteredDosages = [...this.dosages];
     });
 
-    this.doctorData.getTodaysPatients().subscribe({
+    this.loadPatientsForSelectedDate();
+  }
+
+  private getSelectedDateKey(): string {
+    return this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd') || '';
+  }
+
+  private toLocalDate(dateValue: string | Date): Date {
+    if (dateValue instanceof Date) {
+      return new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
+    }
+
+    const normalized = String(dateValue).trim().split('T')[0];
+    return new Date(`${normalized}T00:00:00`);
+  }
+
+  formatVisitDate(dateValue?: string | Date | null): string {
+    if (!dateValue) {
+      return '';
+    }
+
+    return this.datePipe.transform(this.toLocalDate(dateValue), 'dd/MM/yyyy') || '';
+  }
+
+  loadPatientsForSelectedDate(): void {
+    const dateKey = this.getSelectedDateKey();
+    if (!dateKey) {
+      this.displayedPatients = [];
+      this.selectedPatient = undefined;
+      return;
+    }
+
+    this.loadedPrescriptionPatientIds.clear();
+    this.doctorData.getPatientsByDate(dateKey).subscribe({
       next: (data) => {
-        this.allPatients = data;
-        this.filterPatientsByDate();
+        this.displayedPatients = data;
+        this.applyAutoSelection();
       },
       error: (err) => console.error('Failed to load patients', err),
     });
   }
 
-  filterPatientsByDate() {
-    if (!this.selectedDate) {
-      this.displayedPatients = this.allPatients;
+  private applyAutoSelection(): void {
+    if (this.displayedPatients.length === 0) {
+      this.selectedPatient = undefined;
       return;
     }
-    const dateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
-    
-    this.displayedPatients = this.allPatients.filter(p => {
-      if (!p.latestVisitDate) return false;
-      // Handle if backend returns Date object or string
-      const vDate = new Date(p.latestVisitDate);
-      const visitDateStr = this.datePipe.transform(vDate, 'yyyy-MM-dd');
-      return visitDateStr === dateStr;
-    });
 
-    // Auto-select priority: "In Consultation" -> First "Waiting"
-    // Only auto-select if no patient is currently manually selected, or if we are reloading/init load
-    if (!this.selectedPatient || this.selectedPatient.latestVisitDate !== dateStr) {
-      this.selectedPatient = undefined; // Reset if switching dates
-
-      const inConsultation = this.displayedPatients.find(p => p.status === 'In Consultation');
-      if (inConsultation) {
-        this.selectPatient(inConsultation);
-      } else {
-        const firstWaiting = this.displayedPatients.find(p => p.status === 'Waiting');
-        if (firstWaiting) {
-          this.selectPatient(firstWaiting);
-        }
+    const selectedId = this.selectedPatient?.id;
+    if (selectedId) {
+      const stillVisible = this.displayedPatients.find(patient => patient.id === selectedId);
+      if (stillVisible) {
+        this.selectPatient(stillVisible);
+        return;
       }
     }
+
+    const inConsultation = this.displayedPatients.find(patient => patient.status === 'In Consultation');
+    if (inConsultation) {
+      this.selectPatient(inConsultation);
+      return;
+    }
+
+    const firstWaiting = this.displayedPatients.find(patient => patient.status === 'Waiting');
+    if (firstWaiting) {
+      this.selectPatient(firstWaiting);
+      return;
+    }
+
+    this.selectedPatient = this.displayedPatients[0];
+    this.loadPatientPrescriptions(this.selectedPatient);
   }
 
   onDateChange() {
-    this.selectedPatient = undefined; // Clear selection on date change to trigger auto-select logic
-    this.filterPatientsByDate();
+    this.selectedPatient = undefined;
+    this.loadPatientsForSelectedDate();
   }
 
   selectPatient(patient: Patient): void {
     this.selectedPatient = patient;
-    this.ensurePrescriptionExists();
     this.resetNewMedicineDraft();
     // Default currentDiagnosis to empty array if undefined
     if (!this.selectedPatient.currentDiagnosis) {
       this.selectedPatient.currentDiagnosis = [];
     }
+
+    if (patient.id && this.loadedPrescriptionPatientIds.has(patient.id)) {
+      this.ensurePrescriptionExists();
+      return;
+    }
+
+    this.loadPatientPrescriptions(patient);
+  }
+
+  private loadPatientPrescriptions(patient: Patient): void {
+    if (!patient.id) {
+      this.ensurePrescriptionExists();
+      return;
+    }
+
+    this.doctorData.getPatientPrescriptions(patient.id).subscribe({
+      next: (prescriptions) => {
+        patient.prescriptions = prescriptions || [];
+        this.loadedPrescriptionPatientIds.add(patient.id!);
+        this.ensurePrescriptionExists();
+      },
+      error: (err) => {
+        console.error('Failed to load prescriptions for patient', err);
+        patient.prescriptions = patient.prescriptions || [];
+        this.loadedPrescriptionPatientIds.add(patient.id!);
+        this.ensurePrescriptionExists();
+      }
+    });
   }
 
   backToList(): void {
@@ -192,18 +251,20 @@ export class DoctorDashboardComponent implements OnInit {
   ensurePrescriptionExists() {
     if (!this.selectedPatient) return;
 
+    console.log('Ensuring prescription exists for patient:', this.selectedPatient);
+
     if (!this.selectedPatient.prescriptions) {
       this.selectedPatient.prescriptions = [];
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const existing = this.selectedPatient.prescriptions.find(p => p.date.startsWith(todayStr));
+    const selectedDateStr = this.getSelectedDateKey();
+    const existing = this.selectedPatient.prescriptions.find(p => String(p.date).startsWith(selectedDateStr));
 
     if (!existing) {
       this.selectedPatient.prescriptions.push({
         id: Date.now(),
         patientId: this.selectedPatient.id!,
-        date: new Date().toISOString(),
+        date: selectedDateStr,
         notes: '',
         consultationFee: 500,
         medicines: []
@@ -213,7 +274,10 @@ export class DoctorDashboardComponent implements OnInit {
 
   getCurrentPrescription(): Prescription | undefined {
     if (!this.selectedPatient?.prescriptions) return undefined;
-    return this.selectedPatient.prescriptions[this.selectedPatient.prescriptions.length - 1];
+
+    const selectedDateStr = this.getSelectedDateKey();
+    const selectedPrescription = this.selectedPatient.prescriptions.find(p => String(p.date).startsWith(selectedDateStr));
+    return selectedPrescription || this.selectedPatient.prescriptions[this.selectedPatient.prescriptions.length - 1];
   }
 
   addMedicine(): void {
@@ -374,6 +438,18 @@ export class DoctorDashboardComponent implements OnInit {
     if (medicineName && !this.isValueInList(medicineName, this.medicines)) {
       this.addMedicineToMaster(medicineName);
     }
+  }
+
+  onDraftMedicineSelect(event: any): void {
+    const selectedItem = event.value || event;
+    const medicineName = this.normalizeMasterValue(selectedItem);
+
+    if (!medicineName) {
+      return;
+    }
+
+    this.newMedicineDraft.medicineName = medicineName;
+    this.addDraftMedicineToPrescription();
   }
 
   onDosageSelect(event: any) {
@@ -563,18 +639,18 @@ export class DoctorDashboardComponent implements OnInit {
 
   getPatientLastVisit(p: Patient): string {
     if (!p.prescriptions || p.prescriptions.length < 2) return 'N/A';
-    const todayStr = new Date().toISOString().split('T')[0];
-    const prev = p.prescriptions.filter(pre => !pre.date.startsWith(todayStr)).pop();
-    return prev ? prev.date.split('T')[0] : 'N/A';
+    const selectedDateStr = this.getSelectedDateKey();
+    const prev = p.prescriptions.filter(pre => !String(pre.date).startsWith(selectedDateStr)).pop();
+    return prev ? String(prev.date).split('T')[0] : 'N/A';
   }
 
   getLastVisitDetails(p: Patient): { date: string, notes: string } | null {
     if (!p.prescriptions || p.prescriptions.length < 2) return null;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const prev = p.prescriptions.filter(pre => !pre.date.startsWith(todayStr)).pop();
+    const selectedDateStr = this.getSelectedDateKey();
+    const prev = p.prescriptions.filter(pre => !String(pre.date).startsWith(selectedDateStr)).pop();
     if (!prev) return null;
     return {
-      date: prev.date.split('T')[0],
+      date: String(prev.date).split('T')[0],
       notes: prev.notes || 'No notes'
     };
   }
@@ -599,10 +675,9 @@ export class DoctorDashboardComponent implements OnInit {
     });
 
     // 2. Identify and Save New Medicines
-    const currentPrescription = this.selectedPatient.prescriptions.find(p => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      return p.date.startsWith(todayStr); // Matches today
-    });
+    const currentPrescription = this.getCurrentPrescription();
+    this.addDraftMedicineToPrescription();
+    console.log('Current prescription for today:', currentPrescription);
 
     if (currentPrescription) {
       // Check for new medicines
@@ -626,6 +701,7 @@ export class DoctorDashboardComponent implements OnInit {
         notes: currentPrescription.notes,
         nextVisitDate: null,
         medicines: currentPrescription.medicines.map(m => ({
+          medicineId: m.medicineId,
           medicineName: m.medicineName,
           dosage: m.dosage,
           duration: m.daysToTake ? `${m.daysToTake} days` : '',

@@ -1,11 +1,42 @@
 const db = require('../config/db.config');
+const LOCAL_TIME_ZONE = process.env.APP_TIME_ZONE || 'Asia/Kolkata';
+
+function normalizeDateValue(value) {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().split('T')[0];
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function getLocalDateKey(dateValue = new Date()) {
+    if (dateValue instanceof Date) {
+        return new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIME_ZONE }).format(dateValue);
+    }
+
+    const normalized = String(dateValue).trim().split('T')[0];
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : '';
+}
+
+function normalizePatientDates(patient) {
+    return {
+        ...patient,
+        latestVisitDate: patient.latestVisitDate ? getLocalDateKey(patient.latestVisitDate) : null
+    };
+}
 
 // Get all patients or filtered by date (for today's list)
 exports.getPatients = async (req, res) => {
     try {
-        // In a real app we might filter by date `WHERE latestVisitDate = CURDATE()` 
-        // But for this demo we return all 
-        const [patients] = await db.query('SELECT * FROM patients ORDER BY FIELD(status, "In Consultation", "Waiting", "Payment Done")');
+        const requestedDate = normalizeDateValue(req.query.date);
+        const query = requestedDate
+            ? 'SELECT * FROM patients WHERE latestVisitDate = ? ORDER BY FIELD(status, "In Consultation", "Waiting", "Payment Done")'
+            : 'SELECT * FROM patients ORDER BY FIELD(status, "In Consultation", "Waiting", "Payment Done")';
+
+        const [patients] = requestedDate
+            ? await db.query(query, [requestedDate])
+            : await db.query(query);
 
         // For each patient, attach diagnoses
         for (let p of patients) {
@@ -16,10 +47,31 @@ exports.getPatients = async (req, res) => {
             // p.prescriptions = []; 
         }
 
-        res.json(patients);
+        res.json(patients.map(normalizePatientDates));
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error fetching patients' });
+    }
+};
+
+exports.getPatientDateSummaries = async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT DATE_FORMAT(latestVisitDate, '%Y-%m-%d') AS date,
+                   COUNT(*) AS count
+            FROM patients
+            WHERE latestVisitDate IS NOT NULL
+            GROUP BY latestVisitDate
+            ORDER BY latestVisitDate DESC
+        `);
+
+        res.json(rows.map(row => ({
+            date: row.date,
+            count: Number(row.count) || 0
+        })));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error fetching patient date summaries' });
     }
 };
 
@@ -28,7 +80,7 @@ exports.getPatientById = async (req, res) => {
         const [rows] = await db.query('SELECT * FROM patients WHERE id = ?', [req.params.id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Patient not found' });
 
-        const patient = rows[0];
+        const patient = normalizePatientDates(rows[0]);
         const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
         patient.currentDiagnosis = diags.map(d => d.diagnosisName);
         patient.paymentMode = patient.paymentMode || 'QR';
@@ -41,7 +93,8 @@ exports.getPatientById = async (req, res) => {
 
 exports.getNextToken = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = CURDATE()');
+        const todayKey = getLocalDateKey();
+        const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = ?', [todayKey]);
         const nextToken = (rows[0].maxToken || 0) + 1;
         console.log("Next Token Calculated:", nextToken);
         res.json({ nextToken });
@@ -64,15 +117,16 @@ exports.createPatient = async (req, res) => {
         const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
 
         let finalToken = tokenNumber;
+        const todayKey = getLocalDateKey();
         if (!finalToken) {
             // Calculate Token Number for today
-            const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = CURDATE()');
+            const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = ?', [todayKey]);
             finalToken = (rows[0].maxToken || 0) + 1;
         }
 
         const [result] = await db.query(
-            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", ?, CURDATE(), ?, ?)',
-            [name, age, gender, finalMobile, visitReason, finalPaymentMode, finalToken, finalConsultationFee]
+            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", ?, ?, ?, ?)',
+            [name, age, gender, finalMobile, visitReason, finalPaymentMode, todayKey, finalToken, finalConsultationFee]
         );
         res.json({ id: result.insertId, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {

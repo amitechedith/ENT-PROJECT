@@ -7,6 +7,7 @@ const prescriptionController = require('../controllers/prescription.controller')
 // Patient Routes
 router.get('/', patientController.getPatients);
 router.get('/next-token', patientController.getNextToken);
+router.get('/date-summaries', patientController.getPatientDateSummaries);
 router.get('/:id', patientController.getPatientById);
 router.post('/', patientController.createPatient);
 router.patch('/:id/status', patientController.updatePatientStatus);

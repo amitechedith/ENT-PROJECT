@@ -22,6 +22,7 @@ export class BillingPageComponent implements OnInit {
   today: Date = new Date();
   doctorProfile: User | null = null;
   private pendingPatientId: number | null = null;
+  private loadedPrescriptionPatientIds = new Set<number>();
 
   constructor(
     private doctorData: DoctorDataService,
@@ -36,7 +37,7 @@ export class BillingPageComponent implements OnInit {
     this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
 
     this.loadDoctorProfile();
-    this.loadPatients();
+    this.bootstrapPatients();
   }
 
   loadDoctorProfile() {
@@ -56,66 +57,130 @@ export class BillingPageComponent implements OnInit {
     });
   }
 
-  loadPatients() {
-    this.doctorData.getTodaysPatients().subscribe({
-      next: (data) => {
-        this.allPatients = data;
-        this.applyDateAndSelection();
+  bootstrapPatients() {
+    if (this.pendingPatientId) {
+      this.doctorData.getPatientById(this.pendingPatientId).subscribe({
+        next: (patient) => {
+          if (patient?.latestVisitDate) {
+            this.selectedDate = this.toLocalDate(patient.latestVisitDate);
+          }
+          this.loadPatientsForSelectedDate(patient?.id ?? null);
+        },
+        error: (err) => {
+          console.error('Failed to load target patient', err);
+          this.loadPatientsForSelectedDate();
+        }
+      });
+      return;
+    }
+
+    this.loadPatientsForSelectedDate();
+  }
+
+  private getSelectedDateKey(): string {
+    return this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd') || '';
+  }
+
+  private toLocalDate(dateValue: string | Date): Date {
+    if (dateValue instanceof Date) {
+      return new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
+    }
+
+    const normalized = String(dateValue).trim().split('T')[0];
+    return new Date(`${normalized}T00:00:00`);
+  }
+
+  loadPatientsForSelectedDate(preselectPatientId: number | null = null) {
+    const selectedDateKey = this.getSelectedDateKey();
+    if (!selectedDateKey) {
+      this.displayedPatients = [];
+      this.selectedPatient = undefined;
+      return;
+    }
+
+    this.loadedPrescriptionPatientIds.clear();
+    this.doctorData.getPatientsByDate(selectedDateKey).subscribe({
+      next: (patients) => {
+        this.allPatients = patients;
+        this.displayedPatients = patients;
+
+        if (preselectPatientId) {
+          const targetPatient = this.displayedPatients.find(patient => patient.id === preselectPatientId);
+          if (targetPatient) {
+            this.selectPatient(targetPatient);
+            this.pendingPatientId = null;
+            return;
+          }
+        }
+
+        this.applyAutoSelection();
       },
       error: (err) => console.error('Failed to load patients', err)
     });
   }
 
-  applyDateAndSelection() {
-    if (this.pendingPatientId) {
-      const targetPatient = this.allPatients.find(patient => patient.id === this.pendingPatientId);
-      if (targetPatient) {
-        if (targetPatient.latestVisitDate) {
-          this.selectedDate = new Date(targetPatient.latestVisitDate);
-        }
-
-        this.filterPatientsByDate();
-        this.selectedPatient = this.displayedPatients.find(patient => patient.id === targetPatient.id) || targetPatient;
-        this.pendingPatientId = null;
-        return;
-      }
-    }
-
-    this.filterPatientsByDate();
-  }
-
-  filterPatientsByDate() {
-    if (!this.selectedDate) {
-      this.displayedPatients = [...this.allPatients];
-      return;
-    }
-
-    const selectedDateStr = this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd');
-
-    this.displayedPatients = this.allPatients.filter(patient => {
-      if (!patient.latestVisitDate) return false;
-
-      const visitDate = new Date(patient.latestVisitDate);
-      const visitDateStr = this.datePipe.transform(visitDate, 'yyyy-MM-dd');
-      return visitDateStr === selectedDateStr;
-    });
-
-    if (!this.selectedPatient || !this.displayedPatients.some(p => p.id === this.selectedPatient.id)) {
-      this.selectedPatient = undefined;
-      const paymentDonePatient = this.displayedPatients.find(p => p.status === 'Payment Done');
-      if (paymentDonePatient) {
-        this.selectedPatient = paymentDonePatient;
-      }
-    }
-  }
-
   onDateChange() {
     this.selectedPatient = undefined;
-    this.filterPatientsByDate();
+    this.loadPatientsForSelectedDate();
   }
 
   selectPatient(patient: any) {
     this.selectedPatient = patient;
+    if (patient?.id && this.loadedPrescriptionPatientIds.has(patient.id)) {
+      this.pendingPatientId = null;
+      return;
+    }
+
+    this.loadPatientPrescriptions(patient);
+  }
+
+  private applyAutoSelection(): void {
+    if (this.displayedPatients.length === 0) {
+      this.selectedPatient = undefined;
+      return;
+    }
+
+    const paymentDonePatient = this.displayedPatients.find(patient => patient.status === 'Payment Done');
+    if (paymentDonePatient) {
+      this.selectPatient(paymentDonePatient);
+      return;
+    }
+
+    this.selectPatient(this.displayedPatients[0]);
+  }
+
+  private loadPatientPrescriptions(patient: any): void {
+    if (!patient?.id) {
+      this.pendingPatientId = null;
+      return;
+    }
+
+    this.doctorData.getPatientPrescriptions(patient.id).subscribe({
+      next: (prescriptions) => {
+        patient.prescriptions = prescriptions || [];
+        this.loadedPrescriptionPatientIds.add(patient.id);
+        this.pendingPatientId = null;
+        this.selectedPatient = patient;
+      },
+      error: (err) => {
+        console.error('Failed to load prescriptions', err);
+        patient.prescriptions = patient.prescriptions || [];
+        this.loadedPrescriptionPatientIds.add(patient.id);
+        this.pendingPatientId = null;
+        this.selectedPatient = patient;
+      }
+    });
+  }
+
+  get activePrescription(): any | undefined {
+    if (!this.selectedPatient?.prescriptions?.length) {
+      return undefined;
+    }
+
+    const selectedDateKey = this.getSelectedDateKey();
+    return this.selectedPatient.prescriptions.find((prescription: any) =>
+      String(prescription.date).startsWith(selectedDateKey)
+    ) || this.selectedPatient.prescriptions[0];
   }
 
   printRx() {
@@ -168,7 +233,7 @@ export class BillingPageComponent implements OnInit {
 
   // Helper to check if patient has prescriptions
   hasPrescription(p: any): boolean {
-    return p.prescriptions && p.prescriptions.length > 0;
+    return !!this.activePrescription;
   }
 
   get doctorDisplayName(): string {
@@ -204,7 +269,9 @@ export class BillingPageComponent implements OnInit {
   }
 
   get billingDateValue(): Date | string {
-    return this.selectedPatient?.latestVisitDate || this.selectedDate;
+    return this.selectedPatient?.latestVisitDate
+      ? this.toLocalDate(this.selectedPatient.latestVisitDate)
+      : this.selectedDate;
   }
 
   get billingDateLabel(): string {

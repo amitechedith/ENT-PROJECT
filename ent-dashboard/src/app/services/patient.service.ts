@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Patient } from '../models/patient.model';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -10,9 +10,13 @@ export class PatientService {
 
   constructor(private http: HttpClient) { }
 
-  getTodaysPatients(): Observable<Patient[]> {
-    // Backend handles sorting/filtering or default list
-    return this.http.get<Patient[]>(this.apiUrl);
+  getPatientsByDate(date: string): Observable<Patient[]> {
+    const params = new HttpParams().set('date', date);
+    return this.http.get<Patient[]>(this.apiUrl, { params });
+  }
+
+  getPatientDateSummaries(): Observable<Array<{ date: string; count: number }>> {
+    return this.http.get<Array<{ date: string; count: number }>>(`${this.apiUrl}/date-summaries`);
   }
 
   saveOrUpdatePatient(patient: Patient): Observable<any> {

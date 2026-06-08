@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, forkJoin, map, switchMap, of, catchError } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { DataService } from './data.service';
 import { Patient } from '../models/patient.model';
 import { Medicine } from '../models/medicine.model';
@@ -11,29 +11,20 @@ import { Diagnosis } from '../models/diagnosis.model';
 export class DoctorDataService {
   constructor(private dataService: DataService) { }
 
-  /**
-   * Load patients along with their prescriptions and prescription medicines.
-   */
-  getTodaysPatients(): Observable<Patient[]> {
-    return this.dataService.getPatients().pipe(
-      switchMap(patients => {
-        if (patients.length === 0) return of([]);
-        // For each patient, fetch prescriptions
-        // Note: In production with many patients, this N+1 is bad. 
-        // Backend should ideally return a summary or we fetch purely on demand.
-        // For now, to keep dashboard logic working (it shows history immediately), we fetch.
+  getPatientsByDate(date: string): Observable<Patient[]> {
+    return this.dataService.getPatientsByDate(date);
+  }
 
-        const requests = patients.map(patient =>
-          this.dataService.getPatientPrescriptions(patient.id!).pipe(
-            map(prescriptions => ({ ...patient, prescriptions })),
-            // If getting prescriptions fails (e.g. 404 or empty), returns patient with empty array
-            catchError(() => of({ ...patient, prescriptions: [] }))
-          )
-        );
+  getPatientDateSummaries(): Observable<Array<{ date: string; count: number }>> {
+    return this.dataService.getPatientDateSummaries();
+  }
 
-        return forkJoin(requests);
-      })
-    );
+  getPatientById(id: number): Observable<Patient> {
+    return this.dataService.getPatientById(id);
+  }
+
+  getPatientPrescriptions(patientId: number): Observable<any[]> {
+    return this.dataService.getPatientPrescriptions(patientId);
   }
 
   /**

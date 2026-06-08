@@ -30,7 +30,7 @@ export class AdminDashboardComponent implements OnInit {
     roles = [
         { label: 'Doctor', value: 'doctor' },
         { label: 'Receptionist', value: 'receptionist' },
-        { label: 'Billing', value: 'billing' },
+        { label: 'Prescription', value: 'billing' },
         { label: 'Admin', value: 'admin' }
     ];
 
@@ -72,6 +72,10 @@ export class AdminDashboardComponent implements OnInit {
         return this.canManageAdmins
             ? this.roles
             : this.roles.filter(role => role.value !== 'admin');
+    }
+
+    displayRoleLabel(role: string): string {
+        return role === 'billing' ? 'Prescription' : role;
     }
 
     passwordMatchValidator(form: FormGroup) {

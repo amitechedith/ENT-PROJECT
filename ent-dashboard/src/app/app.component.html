@@ -14,7 +14,7 @@
       <p class="hidden md:block text-sm text-gray-500 italic">
         Welcome, <a routerLink="/profile"
           class="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">{{ user.fullName }}</a> ({{
-        user.role | uppercase }})
+        displayRoleLabel(user.role) }})
       </p>
       <button (click)="logout()"
         class="md:hidden bg-red-100 text-red-600 px-3 py-1 rounded text-xs hover:bg-red-200">Logout</button>
@@ -38,7 +38,7 @@
 
       <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/billing"
         routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
-        Billing
+        Prescription
       </a>
 
       <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin" routerLinkActive="font-semibold border-b-2 border-yellow-400"

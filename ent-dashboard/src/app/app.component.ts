@@ -23,4 +23,12 @@ export class AppComponent {
   logout() {
     this.authService.logout();
   }
+
+  displayRoleLabel(role?: string): string {
+    if (role === 'billing') {
+      return 'Prescription';
+    }
+
+    return role ? role.toUpperCase() : '';
+  }
 }
