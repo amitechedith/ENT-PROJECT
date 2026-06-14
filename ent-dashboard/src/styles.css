@@ -16,15 +16,147 @@ body {
 
 /* PrimeNG overrides for better Tailwind look */
 .p-button {
-  @apply bg-primary text-white font-medium rounded-lg px-4 py-2 shadow-soft transition hover:bg-primary-dark;
+  @apply bg-primary text-white font-medium rounded-md px-3 py-2 shadow-soft transition hover:bg-primary-dark;
+  min-height: 2.25rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.p-button.p-button-icon-only,
+.p-button.p-button-rounded.p-button-icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  gap: 0 !important;
+}
+
+.p-button.p-button-icon-only::after {
+  display: none !important;
+  content: none !important;
+}
+
+.p-button .p-button-icon-left,
+.p-button .p-button-icon-right,
+.p-button .p-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.p-button.p-button-icon-only .p-button-icon-left,
+.p-button.p-button-icon-only .p-button-icon-right,
+.p-button.p-button-icon-only .p-button-icon {
+  margin: 0 !important;
+}
+
+.p-button .p-button-label {
+  line-height: 1.2;
 }
 
 .p-inputtext {
   @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-light;
+  min-height: 2.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.p-dropdown {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+}
+
+.p-dropdown .p-dropdown-label {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.p-dropdown .p-dropdown-trigger,
+.p-calendar .p-datepicker-trigger,
+.p-autocomplete .p-autocomplete-dropdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+  gap: 0 !important;
+}
+
+.p-dropdown .p-dropdown-trigger-icon,
+.p-calendar .p-datepicker-trigger .pi,
+.p-autocomplete .p-autocomplete-dropdown .pi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.p-calendar {
+  display: inline-flex;
+  align-items: center;
+}
+
+.p-calendar .p-inputtext {
+  min-height: 2.25rem;
 }
 
 .p-card {
-  @apply bg-white rounded-xl shadow-soft p-4;
+  @apply bg-white rounded-lg shadow-soft;
+}
+
+.p-card .p-card-body {
+  padding: 0.875rem;
+}
+
+.p-card .p-card-content {
+  padding: 0;
+}
+
+.p-datatable .p-datatable-thead>tr>th,
+.p-datatable .p-datatable-tbody>tr>td {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.p-menu .p-menuitem-link {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+}
+
+.tiny-delete-btn,
+.p-autocomplete-panel .p-button-danger.p-button-icon-only,
+.p-autocomplete-panel .p-button-danger.p-button-rounded {
+  width: 1.6rem !important;
+  height: 1.6rem !important;
+  min-width: 1.6rem !important;
+  min-height: 1.6rem !important;
+  padding: 0 !important;
+  border-radius: 9999px !important;
+  border: 1px solid #fecaca !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  box-shadow: none !important;
+}
+
+.tiny-delete-btn:hover,
+.p-autocomplete-panel .p-button-danger.p-button-icon-only:hover,
+.p-autocomplete-panel .p-button-danger.p-button-rounded:hover {
+  background: #fecaca !important;
+  color: #b91c1c !important;
+  border-color: #fca5a5 !important;
+}
+
+.tiny-delete-btn .pi,
+.p-autocomplete-panel .p-button-danger .pi {
+  color: currentColor !important;
+  font-size: 0.75rem !important;
+  line-height: 1 !important;
 }
 
 /* Force full width for PrimeNG AutoComplete in multiple mode */
@@ -37,6 +169,16 @@ body {
 
 .p-autocomplete-multiple-container {
   flex: 1 1 auto !important;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem !important;
+}
+
+.app-shell-scroll {
+  scrollbar-width: none;
+}
+
+.app-shell-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes fadeIn {

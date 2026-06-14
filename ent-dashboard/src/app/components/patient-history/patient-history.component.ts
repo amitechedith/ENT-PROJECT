@@ -1,17 +1,17 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { PatientHistory, PatientHistoryMedicine, PatientHistoryVisit } from '../../../models/patient-history.model';
-import { PatientService } from '../../../services/patient.service';
+import { PatientHistory, PatientHistoryMedicine, PatientHistoryVisit } from '../../models/patient-history.model';
+import { PatientService } from '../../services/patient.service';
 
 @Component({
-  selector: 'app-patient-visit-timeline',
+  selector: 'app-patient-history',
   standalone: true,
   imports: [CommonModule, FormsModule],
   providers: [DatePipe],
-  templateUrl: './patient-visit-timeline.component.html'
+  templateUrl: './patient-history.component.html'
 })
-export class PatientVisitTimelineComponent implements OnInit {
+export class PatientHistoryComponent implements OnInit {
   patients: PatientHistory[] = [];
   selectedPatient?: PatientHistory;
   searchText = '';
@@ -44,7 +44,7 @@ export class PatientVisitTimelineComponent implements OnInit {
         this.isLoading = false;
       },
       error: (err) => {
-        console.error('Failed to load patient timeline', err);
+        console.error('Failed to load patient history', err);
         this.errorMessage = 'Unable to load patient history right now.';
         this.patients = [];
         this.selectedPatient = undefined;

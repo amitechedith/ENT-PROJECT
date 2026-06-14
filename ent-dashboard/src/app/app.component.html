@@ -1,74 +1,80 @@
 <div class="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-blue-50 via-sky-50 to-blue-100 text-gray-800">
 
-  <!-- HEADER (Only if Logged In) -->
+  <!-- COMPACT HEADER (Only if Logged In) -->
   <header *ngIf="currentUser$ | async as user"
-    class="bg-white/90 backdrop-blur-md shadow-md px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-    <div class="flex items-center space-x-3">
-      <img src="assets/ent-icon.jpeg" alt="Clinic Logo" class="w-10 h-10 drop-shadow-md" />
-      <h1 class="text-2xl md:text-3xl font-bold text-blue-700 tracking-tight">
+    class="min-h-[58px] bg-white/95 backdrop-blur-md shadow-sm border-b border-blue-100 px-3 md:px-4 py-2 flex flex-wrap md:flex-nowrap items-center gap-3 sticky top-0 z-50">
+    <div class="flex h-10 items-center gap-2 shrink-0 min-w-0">
+      <img src="assets/ent-icon.jpeg" alt="Clinic Logo" class="w-8 h-8 drop-shadow-sm" />
+      <h1 class="text-lg md:text-xl font-bold text-blue-700 tracking-tight whitespace-nowrap">
         ENT Clinic Management
       </h1>
     </div>
 
-    <div class="flex items-center gap-4">
-      <p class="hidden md:block text-sm text-gray-500 italic">
-        Welcome, <a routerLink="/profile"
-          class="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">{{ user.fullName }}</a> ({{
-        displayRoleLabel(user.role) }})
-      </p>
-      <button (click)="logout()"
-        class="md:hidden bg-red-100 text-red-600 px-3 py-1 rounded text-xs hover:bg-red-200">Logout</button>
+    <nav class="flex-1 min-w-0 overflow-x-auto app-shell-scroll">
+      <div class="flex h-10 items-center gap-1.5 whitespace-nowrap text-sm font-medium">
+        <a *ngIf="['receptionist', 'admin', 'doctor'].includes(user.role)" routerLink="/reception"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          Reception
+        </a>
+
+        <a *ngIf="['doctor', 'admin'].includes(user.role)" routerLink="/doctor/dashboard"
+          [queryParams]="patientLinkQueryParams"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          Doctor
+        </a>
+
+        <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/billing"
+          [queryParams]="patientLinkQueryParams"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          Prescription
+        </a>
+
+        <!-- <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          History
+        </a> -->
+
+        <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          Admin
+        </a>
+      </div>
+    </nav>
+
+    <div class="relative shrink-0">
+      <button type="button" (click)="toggleUserMenu($event)"
+        class="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm text-gray-700 hover:bg-blue-100 transition">
+        <span class="hidden sm:inline text-gray-500">Welcome,</span>
+        <span class="font-bold text-blue-700 max-w-[150px] truncate">{{ user.fullName }}</span>
+        <span class="hidden lg:inline text-xs font-semibold uppercase text-gray-400">({{ displayRoleLabel(user.role) }})</span>
+        <i class="pi pi-chevron-down text-xs text-blue-500 transition-transform" [ngClass]="{ 'rotate-180': isUserMenuOpen }"></i>
+      </button>
+
+      <div *ngIf="isUserMenuOpen" (click)="$event.stopPropagation()"
+        class="absolute right-0 mt-2 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg z-50">
+        <a routerLink="/profile" (click)="closeUserMenu()"
+          class="flex h-10 items-center gap-2 px-4 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700">
+          <i class="pi pi-user text-blue-500"></i>
+          Profile
+        </a>
+        <button type="button" (click)="logout()"
+          class="flex h-10 w-full items-center gap-2 px-4 text-left text-sm text-red-600 hover:bg-red-50">
+          <i class="pi pi-sign-out"></i>
+          Logout
+        </button>
+      </div>
     </div>
   </header>
-
-  <!-- NAVIGATION (Only if Logged In) -->
-  <nav *ngIf="currentUser$ | async as user"
-    class="bg-blue-700/95 backdrop-blur-sm text-white px-6 md:px-10 py-3 flex justify-between items-center shadow-md sticky top-[72px] z-40">
-    <div class="flex space-x-6">
-
-      <a *ngIf="['receptionist', 'admin', 'doctor'].includes(user.role)" routerLink="/reception"
-        routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
-        Reception
-      </a>
-
-      <a *ngIf="['doctor', 'admin'].includes(user.role)" routerLink="/doctor/dashboard"
-        routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
-        Doctor
-      </a>
-
-      <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/billing"
-        routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
-        Prescription
-      </a>
-
-      <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
-        routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
-        Timeline
-      </a>
-
-      <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin" routerLinkActive="font-semibold border-b-2 border-yellow-400"
-        class="hover:text-yellow-300 transition-all pb-1">
-        Admin
-      </a>
-    </div>
-
-    <!-- Right side controls -->
-    <div class="hidden md:flex items-center space-x-3">
-      <button (click)="logout()" class="bg-white/20 px-3 py-1 rounded-lg text-sm hover:bg-white/30 transition">
-        Logout
-      </button>
-    </div>
-  </nav>
 
   <!-- MAIN CONTENT -->
   <main class="flex-grow relative overflow-hidden flex flex-col">
     <div class="absolute inset-0 bg-[url('assets/ent-bg.jpg')] bg-cover bg-center opacity-40 blur-[1px]"></div>
 
-    <div class="relative z-10 flex-grow flex flex-col p-4 md:p-6 overflow-hidden">
+    <div class="relative z-10 flex-grow flex flex-col p-2 overflow-hidden">
       <div
-        class="bg-white/80 rounded-2xl shadow-xl backdrop-blur-sm border border-white/40 flex flex-col h-full overflow-hidden">
+        class="bg-white/85 rounded-lg shadow-md backdrop-blur-sm border border-white/50 flex flex-col h-full overflow-hidden">
 
-        <div class="flex-grow overflow-auto p-6 md:p-8">
+        <div class="flex-grow overflow-auto p-2 md:p-3">
           <router-outlet></router-outlet>
         </div>
       </div>
@@ -76,7 +82,7 @@
   </main>
 
   <!-- FOOTER -->
-  <footer class="text-center py-4 text-sm text-gray-600 border-t bg-white/70 backdrop-blur-sm mt-auto">
+  <footer class="h-5 flex items-center justify-center text-[11px] text-gray-500 border-t bg-white/70 backdrop-blur-sm mt-auto">
     © 2025 ENT Clinic | Designed for Specialists
   </footer>
 </div>

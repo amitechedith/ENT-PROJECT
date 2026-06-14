@@ -152,6 +152,16 @@ exports.updateUser = async (req, res) => {
             doctorTimings
         } = req.body;
 
+        const [currentRows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+        if (currentRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const currentUser = currentRows[0];
+        const finalPassword = typeof password === 'string' && password.trim()
+            ? password
+            : currentUser.password;
+
         // Check if username is being changed to one that already exists for another user
         if (username) {
             const [existing] = await db.query('SELECT * FROM users WHERE username = ? AND id != ?', [username, id]);
@@ -175,7 +185,7 @@ exports.updateUser = async (req, res) => {
                 username,
                 fullName,
                 mobile,
-                password,
+                finalPassword,
                 role,
                 role === 'doctor' ? doctorTitle : null,
                 role === 'doctor' ? doctorRegistrationNumber : null,
@@ -191,6 +201,45 @@ exports.updateUser = async (req, res) => {
     } catch (error) {
         console.error('Update user error:', error);
         res.status(500).json({ message: 'Error updating user' });
+    }
+}
+
+exports.changePassword = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { oldPassword, newPassword, confirmPassword } = req.body;
+
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: 'Old password, new password, and confirm password are required' });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'New password and confirm password do not match' });
+        }
+
+        if (newPassword.length < 4) {
+            return res.status(400).json({ message: 'New password must be at least 4 characters' });
+        }
+
+        const [rows] = await db.query('SELECT id, password, role FROM users WHERE id = ?', [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const user = rows[0];
+        if (user.role === 'admin') {
+            return res.status(403).json({ message: 'Admin password changes are managed from Admin users' });
+        }
+
+        if (user.password !== oldPassword) {
+            return res.status(400).json({ message: 'Old password is incorrect' });
+        }
+
+        await db.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, id]);
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ message: 'Error updating password' });
     }
 }
 

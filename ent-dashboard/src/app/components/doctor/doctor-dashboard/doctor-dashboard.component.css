@@ -46,10 +46,18 @@
 }
 
 .tiny-delete-btn {
-    width: 1.25rem !important;
-    height: 1.25rem !important;
+    width: 1.6rem !important;
+    height: 1.6rem !important;
+    min-width: 1.6rem !important;
+    min-height: 1.6rem !important;
+    padding: 0 !important;
+    border-radius: 9999px !important;
+    border: 1px solid #fecaca !important;
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
   }
   
   .tiny-delete-btn .pi {
-    font-size: 0.7rem !important;
+    font-size: 0.75rem !important;
+    color: currentColor !important;
   }

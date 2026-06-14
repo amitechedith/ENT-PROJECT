@@ -40,17 +40,63 @@
                 </small>
             </div>
 
+            <div class="flex justify-end pt-4 border-t border-gray-100 mt-2">
+                <button pButton label="Update Profile" icon="pi pi-check" type="submit"
+                    [disabled]="profileForm.invalid || loading"></button>
+            </div>
+        </form>
+    </div>
+
+    <div *ngIf="canUpdatePassword" class="card bg-white p-8 rounded-xl shadow-lg border border-gray-100 mt-6">
+        <div class="mb-5">
+            <h3 class="text-lg font-bold text-gray-800">Update Password</h3>
+            <p class="text-sm text-gray-500">Enter your old password and confirm the new password twice.</p>
+        </div>
+
+        <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()" class="flex flex-col gap-5">
             <div class="flex flex-col gap-1">
-                <label class="font-semibold text-sm text-gray-700">Password</label>
-                <input pInputText type="text" formControlName="password" />
-                <!-- Showing as text so they can see what they set -->
-                <small class="text-gray-400">You can update your password here.</small>
+                <label class="font-semibold text-sm text-gray-700">Old Password <span class="text-red-500">*</span></label>
+                <p-password formControlName="oldPassword" [feedback]="false" [toggleMask]="true" styleClass="w-full"
+                    inputStyleClass="w-full" placeholder="Enter old password" appendTo="body"></p-password>
+                <small *ngIf="isInvalid(passwordForm, 'oldPassword')" class="text-red-500">
+                    Old password is required
+                </small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm text-gray-700">New Password <span class="text-red-500">*</span></label>
+                <p-password formControlName="newPassword" [feedback]="false" [toggleMask]="true" styleClass="w-full"
+                    inputStyleClass="w-full" placeholder="Enter new password" appendTo="body"></p-password>
+                <small *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['required']"
+                    class="text-red-500">
+                    New password is required
+                </small>
+                <small *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['minlength']"
+                    class="text-red-500">
+                    New password must be at least 4 characters
+                </small>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm text-gray-700">Confirm New Password <span class="text-red-500">*</span></label>
+                <p-password formControlName="confirmPassword" [feedback]="false" [toggleMask]="true" styleClass="w-full"
+                    inputStyleClass="w-full" placeholder="Re-enter new password" appendTo="body"></p-password>
+                <small *ngIf="isInvalid(passwordForm, 'confirmPassword')" class="text-red-500">
+                    Confirm password is required
+                </small>
+                <small *ngIf="isPasswordMismatch()" class="text-red-500">
+                    New password and confirm password must match
+                </small>
             </div>
 
             <div class="flex justify-end pt-4 border-t border-gray-100 mt-2">
-                <button pButton label="Update Profile" icon="pi pi-check" type="submit"
-                    [disabled]="profileForm.invalid"></button>
+                <button pButton label="Update Password" icon="pi pi-lock" type="submit"
+                    [disabled]="passwordForm.invalid || passwordLoading"></button>
             </div>
         </form>
+    </div>
+
+    <div *ngIf="currentUser?.role === 'admin'" class="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
+        Admin password changes are managed from the Admin users screen.
     </div>
 </div>

@@ -91,7 +91,7 @@ exports.getPatientById = async (req, res) => {
     }
 }
 
-exports.getPatientVisitTimeline = async (req, res) => {
+exports.getPatientVisitHistory = async (req, res) => {
     try {
         const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
         const fromDate = normalizeDateValue(req.query.from);
@@ -175,7 +175,7 @@ exports.getPatientVisitTimeline = async (req, res) => {
             params
         );
 
-        const timelinePatients = [];
+        const historyPatients = [];
 
         for (const row of patients) {
             const patient = normalizePatientDates(row);
@@ -278,7 +278,7 @@ exports.getPatientVisitTimeline = async (req, res) => {
             const visits = Array.from(visitsByDate.values())
                 .sort((left, right) => String(right.date).localeCompare(String(left.date)));
 
-            timelinePatients.push({
+            historyPatients.push({
                 id: patient.id,
                 name: patient.name,
                 age: patient.age,
@@ -291,10 +291,10 @@ exports.getPatientVisitTimeline = async (req, res) => {
             });
         }
 
-        res.json(timelinePatients);
+        res.json(historyPatients);
     } catch (error) {
-        console.error('Error fetching patient visit timeline:', error);
-        res.status(500).json({ message: 'Error fetching patient visit timeline' });
+        console.error('Error fetching patient visit history:', error);
+        res.status(500).json({ message: 'Error fetching patient visit history' });
     }
 };
 

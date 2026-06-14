@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
@@ -50,6 +50,7 @@ export class DoctorDashboardComponent implements OnInit {
   displayedPatients: Patient[] = [];
   selectedPatient?: Patient;
   private loadedPrescriptionPatientIds = new Set<number>();
+  private pendingPatientId: number | null = null;
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -68,10 +69,15 @@ export class DoctorDashboardComponent implements OnInit {
     private datePipe: DatePipe,
     private confirmationService: ConfirmationService,
     private router: Router,
+    private route: ActivatedRoute,
     private messageService: MessageService
   ) { }
 
   ngOnInit(): void {
+    const patientIdParam = this.route.snapshot.queryParamMap.get('patientId');
+    const patientId = Number(patientIdParam);
+    this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+
     this.loadData();
   }
   openDiagnosisDropdown() {
@@ -93,12 +99,13 @@ export class DoctorDashboardComponent implements OnInit {
     }
   }
 
-  openDosageDropdown() {
+  openDosageDropdown(auto?: AutoComplete) {
     // Load first 10 items
     this.filteredDosages = this.dosages.slice(0, 10);
 
-    if (this.dosageAuto) {
-      this.dosageAuto.show();
+    const targetAuto = auto || this.dosageAuto;
+    if (targetAuto) {
+      targetAuto.show();
     }
   }
 
@@ -117,6 +124,26 @@ export class DoctorDashboardComponent implements OnInit {
       this.dosages = dosages.map(d => d.name); // Just strings
       this.filteredDosages = [...this.dosages];
     });
+
+    this.bootstrapPatients();
+  }
+
+  private bootstrapPatients(): void {
+    if (this.pendingPatientId) {
+      this.doctorData.getPatientById(this.pendingPatientId).subscribe({
+        next: (patient) => {
+          if (patient?.latestVisitDate) {
+            this.selectedDate = this.toLocalDate(patient.latestVisitDate);
+          }
+          this.loadPatientsForSelectedDate(patient?.id ?? null);
+        },
+        error: (err) => {
+          console.error('Failed to load target patient', err);
+          this.loadPatientsForSelectedDate();
+        }
+      });
+      return;
+    }
 
     this.loadPatientsForSelectedDate();
   }
@@ -142,7 +169,7 @@ export class DoctorDashboardComponent implements OnInit {
     return this.datePipe.transform(this.toLocalDate(dateValue), 'dd/MM/yyyy') || '';
   }
 
-  loadPatientsForSelectedDate(): void {
+  loadPatientsForSelectedDate(preselectPatientId: number | null = null): void {
     const dateKey = this.getSelectedDateKey();
     if (!dateKey) {
       this.displayedPatients = [];
@@ -154,6 +181,16 @@ export class DoctorDashboardComponent implements OnInit {
     this.doctorData.getPatientsByDate(dateKey).subscribe({
       next: (data) => {
         this.displayedPatients = data;
+
+        if (preselectPatientId) {
+          const targetPatient = this.displayedPatients.find(patient => patient.id === preselectPatientId);
+          if (targetPatient) {
+            this.selectPatient(targetPatient);
+            this.pendingPatientId = null;
+            return;
+          }
+        }
+
         this.applyAutoSelection();
       },
       error: (err) => console.error('Failed to load patients', err),
@@ -187,8 +224,7 @@ export class DoctorDashboardComponent implements OnInit {
       return;
     }
 
-    this.selectedPatient = this.displayedPatients[0];
-    this.loadPatientPrescriptions(this.selectedPatient);
+    this.selectPatient(this.displayedPatients[0]);
   }
 
   onDateChange() {
@@ -198,6 +234,7 @@ export class DoctorDashboardComponent implements OnInit {
 
   selectPatient(patient: Patient): void {
     this.selectedPatient = patient;
+    this.updatePatientQueryParam(patient.id);
     this.resetNewMedicineDraft();
     // Default currentDiagnosis to empty array if undefined
     if (!this.selectedPatient.currentDiagnosis) {
@@ -210,6 +247,19 @@ export class DoctorDashboardComponent implements OnInit {
     }
 
     this.loadPatientPrescriptions(patient);
+  }
+
+  private updatePatientQueryParam(patientId?: number): void {
+    if (!patientId) {
+      return;
+    }
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { patientId },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   private loadPatientPrescriptions(patient: Patient): void {

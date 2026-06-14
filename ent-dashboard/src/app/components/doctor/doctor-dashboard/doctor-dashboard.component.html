@@ -272,7 +272,8 @@
                           <p-autoComplete #dosageAuto [(ngModel)]="med.dosage" [suggestions]="filteredDosages"
                             (completeMethod)="searchDosage($event)" [dropdown]="true"
                             placeholder="Select or Type Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
-                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openDosageDropdown()"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(dosageAuto)"
+                            (onFocus)="openDosageDropdown(dosageAuto)"
                             (onSelect)="onDosageSelect($event)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
@@ -329,10 +330,11 @@
                           </p-autoComplete>
                         </td>
                         <td class="p-3">
-                          <p-autoComplete [(ngModel)]="newMedicineDraft.dosage" [suggestions]="filteredDosages"
+                          <p-autoComplete #newDosageAuto [(ngModel)]="newMedicineDraft.dosage" [suggestions]="filteredDosages"
                             (completeMethod)="searchDosage($event)" [dropdown]="true"
                             placeholder="Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
-                            [inputStyle]="{'width':'100%'}" appendTo="body" (onFocus)="openDosageDropdown()"
+                            [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(newDosageAuto)"
+                            (onFocus)="openDosageDropdown(newDosageAuto)"
                             (onSelect)="onDosageSelect($event)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">

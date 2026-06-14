@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CalendarModule } from 'primeng/calendar';
 import { DoctorDataService } from '../../../services/doctor-data.service';
 import { AuthService } from '../../../services/auth.service';
@@ -28,7 +28,8 @@ export class BillingPageComponent implements OnInit {
     private doctorData: DoctorDataService,
     private authService: AuthService,
     private datePipe: DatePipe,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private router: Router
   ) { }
 
   ngOnInit() {
@@ -126,12 +127,27 @@ export class BillingPageComponent implements OnInit {
 
   selectPatient(patient: any) {
     this.selectedPatient = patient;
+    this.updatePatientQueryParam(patient?.id);
+
     if (patient?.id && this.loadedPrescriptionPatientIds.has(patient.id)) {
       this.pendingPatientId = null;
       return;
     }
 
     this.loadPatientPrescriptions(patient);
+  }
+
+  private updatePatientQueryParam(patientId?: number): void {
+    if (!patientId) {
+      return;
+    }
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { patientId },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   private applyAutoSelection(): void {
