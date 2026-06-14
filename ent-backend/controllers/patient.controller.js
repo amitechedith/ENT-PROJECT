@@ -91,6 +91,213 @@ exports.getPatientById = async (req, res) => {
     }
 }
 
+exports.getPatientVisitTimeline = async (req, res) => {
+    try {
+        const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
+        const fromDate = normalizeDateValue(req.query.from);
+        const toDate = normalizeDateValue(req.query.to);
+
+        const conditions = [];
+        const params = [];
+
+        if (searchTerm) {
+            const likeTerm = `%${searchTerm}%`;
+            conditions.push(`
+                (
+                    CAST(p.id AS CHAR) LIKE ?
+                    OR CAST(p.tokenNumber AS CHAR) LIKE ?
+                    OR p.name LIKE ?
+                    OR COALESCE(p.mobile, '') LIKE ?
+                    OR COALESCE(p.visitReason, '') LIKE ?
+                    OR COALESCE(p.status, '') LIKE ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM patient_diagnoses pd
+                        WHERE pd.patientId = p.id
+                          AND pd.diagnosisName LIKE ?
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM prescriptions pr
+                        LEFT JOIN prescription_medicines pm ON pm.prescriptionId = pr.id
+                        WHERE pr.patientId = p.id
+                          AND (
+                              COALESCE(pr.notes, '') LIKE ?
+                              OR COALESCE(pm.medicineName, '') LIKE ?
+                              OR COALESCE(pm.dosage, '') LIKE ?
+                              OR COALESCE(pm.duration, '') LIKE ?
+                          )
+                    )
+                )
+            `);
+            params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+        }
+
+        if (fromDate) {
+            conditions.push(`
+                (
+                    p.latestVisitDate >= ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM prescriptions pr
+                        WHERE pr.patientId = p.id
+                          AND pr.date >= ?
+                    )
+                )
+            `);
+            params.push(fromDate, fromDate);
+        }
+
+        if (toDate) {
+            conditions.push(`
+                (
+                    p.latestVisitDate <= ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM prescriptions pr
+                        WHERE pr.patientId = p.id
+                          AND pr.date <= ?
+                    )
+                )
+            `);
+            params.push(toDate, toDate);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const [patients] = await db.query(
+            `
+            SELECT p.*
+            FROM patients p
+            ${whereClause}
+            ORDER BY COALESCE(p.latestVisitDate, DATE(p.createdAt)) DESC, p.id DESC
+            LIMIT 80
+            `,
+            params
+        );
+
+        const timelinePatients = [];
+
+        for (const row of patients) {
+            const patient = normalizePatientDates(row);
+            patient.paymentMode = patient.paymentMode || 'QR';
+
+            const [diagnosisRows] = await db.query(
+                'SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ? ORDER BY diagnosisName',
+                [patient.id]
+            );
+            const diagnoses = diagnosisRows.map(d => d.diagnosisName);
+
+            const prescriptionParams = [patient.id];
+            const prescriptionConditions = ['patientId = ?'];
+
+            if (fromDate) {
+                prescriptionConditions.push('date >= ?');
+                prescriptionParams.push(fromDate);
+            }
+
+            if (toDate) {
+                prescriptionConditions.push('date <= ?');
+                prescriptionParams.push(toDate);
+            }
+
+            const [prescriptions] = await db.query(
+                `
+                SELECT id,
+                       patientId,
+                       DATE_FORMAT(date, '%Y-%m-%d') AS date,
+                       notes,
+                       CASE
+                           WHEN nextVisitDate IS NULL THEN NULL
+                           ELSE DATE_FORMAT(nextVisitDate, '%Y-%m-%d')
+                       END AS nextVisitDate
+                FROM prescriptions
+                WHERE ${prescriptionConditions.join(' AND ')}
+                ORDER BY date DESC, id DESC
+                `,
+                prescriptionParams
+            );
+
+            const visitsByDate = new Map();
+
+            const addVisit = (date, visitData) => {
+                if (!date) {
+                    return;
+                }
+
+                const existing = visitsByDate.get(date) || {
+                    date,
+                    visitReason: patient.visitReason || '',
+                    status: patient.status || 'Waiting',
+                    paymentMode: patient.paymentMode || 'QR',
+                    consultationFee: Number(patient.consultationFee) || 0,
+                    tokenNumber: patient.tokenNumber || null,
+                    diagnoses,
+                    notes: '',
+                    nextVisitDate: null,
+                    prescriptionId: null,
+                    medicines: []
+                };
+
+                visitsByDate.set(date, {
+                    ...existing,
+                    ...visitData,
+                    diagnoses,
+                    medicines: visitData.medicines || existing.medicines || []
+                });
+            };
+
+            const latestVisitDate = patient.latestVisitDate ? getLocalDateKey(patient.latestVisitDate) : null;
+            if (latestVisitDate && (!fromDate || latestVisitDate >= fromDate) && (!toDate || latestVisitDate <= toDate)) {
+                addVisit(latestVisitDate, {});
+            }
+
+            for (const prescription of prescriptions) {
+                const [medicineRows] = await db.query(
+                    `
+                    SELECT id,
+                           medicineId,
+                           medicineName,
+                           dosage,
+                           duration,
+                           instructions
+                    FROM prescription_medicines
+                    WHERE prescriptionId = ?
+                    ORDER BY id ASC
+                    `,
+                    [prescription.id]
+                );
+
+                addVisit(prescription.date, {
+                    notes: prescription.notes || '',
+                    nextVisitDate: prescription.nextVisitDate,
+                    prescriptionId: prescription.id,
+                    medicines: medicineRows
+                });
+            }
+
+            const visits = Array.from(visitsByDate.values())
+                .sort((left, right) => String(right.date).localeCompare(String(left.date)));
+
+            timelinePatients.push({
+                id: patient.id,
+                name: patient.name,
+                age: patient.age,
+                gender: patient.gender,
+                mobile: patient.mobile,
+                medicalBackground: patient.medicalBackground,
+                latestVisitDate: patient.latestVisitDate,
+                currentDiagnosis: diagnoses,
+                visits
+            });
+        }
+
+        res.json(timelinePatients);
+    } catch (error) {
+        console.error('Error fetching patient visit timeline:', error);
+        res.status(500).json({ message: 'Error fetching patient visit timeline' });
+    }
+};
+
 exports.getNextToken = async (req, res) => {
     try {
         const todayKey = getLocalDateKey();

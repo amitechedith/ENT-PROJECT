@@ -7,6 +7,7 @@ import { LoginComponent } from './components/auth/login/login.component';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminDashboardComponent } from './components/admin/admin-dashboard/admin-dashboard.component';
 import { ProfileComponent } from './components/auth/profile/profile.component';
+import { PatientVisitTimelineComponent } from './components/patient-history/patient-visit-timeline/patient-visit-timeline.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -33,6 +34,12 @@ export const routes: Routes = [
   {
     path: 'billing',
     component: BillingPageComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['billing', 'admin', 'doctor', 'receptionist'] }
+  },
+  {
+    path: 'patient-history',
+    component: PatientVisitTimelineComponent,
     canActivate: [AuthGuard],
     data: { roles: ['billing', 'admin', 'doctor', 'receptionist'] }
   },

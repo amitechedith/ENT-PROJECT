@@ -41,6 +41,11 @@
         Prescription
       </a>
 
+      <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
+        routerLinkActive="font-semibold border-b-2 border-yellow-400" class="hover:text-yellow-300 transition-all pb-1">
+        Timeline
+      </a>
+
       <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin" routerLinkActive="font-semibold border-b-2 border-yellow-400"
         class="hover:text-yellow-300 transition-all pb-1">
         Admin

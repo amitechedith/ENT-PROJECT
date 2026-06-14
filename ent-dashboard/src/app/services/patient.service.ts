@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Patient } from '../models/patient.model';
+import { PatientHistory } from '../models/patient-history.model';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -17,6 +18,24 @@ export class PatientService {
 
   getPatientDateSummaries(): Observable<Array<{ date: string; count: number }>> {
     return this.http.get<Array<{ date: string; count: number }>>(`${this.apiUrl}/date-summaries`);
+  }
+
+  searchPatientHistory(filters: { search?: string; from?: string; to?: string } = {}): Observable<PatientHistory[]> {
+    let params = new HttpParams();
+
+    if (filters.search?.trim()) {
+      params = params.set('search', filters.search.trim());
+    }
+
+    if (filters.from) {
+      params = params.set('from', filters.from);
+    }
+
+    if (filters.to) {
+      params = params.set('to', filters.to);
+    }
+
+    return this.http.get<PatientHistory[]>(`${this.apiUrl}/history`, { params });
   }
 
   saveOrUpdatePatient(patient: Patient): Observable<any> {

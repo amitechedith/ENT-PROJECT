@@ -1,0 +1,255 @@
+<div class="flex h-full min-h-0 overflow-hidden bg-slate-50">
+  <aside class="w-80 bg-white border-r border-slate-200 flex flex-col min-h-0">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="text-xl font-bold text-blue-700 flex items-center gap-2">
+        <i class="pi pi-history"></i>
+        Patient Timeline
+      </h2>
+      <p class="text-xs text-slate-500 mt-1">Search visits, prescriptions, diagnosis and payments</p>
+    </div>
+
+    <form class="p-4 border-b border-slate-100 bg-blue-50/50 space-y-3" (submit)="searchHistory($event)">
+      <div>
+        <label class="block text-xs font-semibold text-blue-700 uppercase mb-1">Search</label>
+        <div class="relative">
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input
+            type="search"
+            name="searchText"
+            [(ngModel)]="searchText"
+            placeholder="Name, mobile, token, diagnosis..."
+            class="w-full rounded-lg border border-blue-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-semibold text-blue-700 uppercase mb-1">From</label>
+          <input
+            type="date"
+            name="fromDate"
+            [(ngModel)]="fromDate"
+            class="w-full rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-blue-700 uppercase mb-1">To</label>
+          <input
+            type="date"
+            name="toDate"
+            [(ngModel)]="toDate"
+            class="w-full rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="submit"
+          class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+          [disabled]="isLoading">
+          <i class="pi pi-search"></i>
+          Search
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+          [disabled]="!hasFilters || isLoading"
+          (click)="clearFilters()"
+          title="Clear filters">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    </form>
+
+    <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between text-xs">
+      <span class="font-semibold uppercase tracking-wide text-slate-500">Patients</span>
+      <span class="rounded-full bg-slate-100 px-2 py-1 font-bold text-slate-700">{{ patients.length }}</span>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+      <div *ngIf="isLoading" class="py-10 text-center text-sm text-slate-400">
+        <i class="pi pi-spin pi-spinner block text-2xl mb-2"></i>
+        Loading history...
+      </div>
+
+      <div *ngIf="!isLoading && errorMessage" class="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+        {{ errorMessage }}
+      </div>
+
+      <button
+        *ngFor="let patient of patients; trackBy: trackByPatientId"
+        type="button"
+        (click)="selectPatient(patient)"
+        class="w-full rounded-lg border p-3 text-left transition"
+        [ngClass]="selectedPatient?.id === patient.id ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'">
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
+            {{ getInitials(patient.name) }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="truncate font-semibold text-slate-800">{{ patient.name }}</h3>
+              <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">#{{ patient.id }}</span>
+            </div>
+            <p class="mt-0.5 truncate text-xs text-slate-500">
+              {{ patient.mobile || 'No mobile' }} <span *ngIf="patient.age">- {{ patient.age }}y</span>
+            </p>
+            <div class="mt-2 flex items-center justify-between gap-2 text-xs">
+              <span class="text-slate-400">{{ formatDate(getLatestVisit(patient)?.date) }}</span>
+              <span class="font-semibold text-blue-700">{{ patient.visits.length }} visit{{ patient.visits.length === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+        </div>
+      </button>
+
+      <div *ngIf="!isLoading && !errorMessage && patients.length === 0" class="py-12 text-center text-sm text-slate-400">
+        <i class="pi pi-folder-open block text-3xl mb-3 text-slate-300"></i>
+        No patient history found.
+      </div>
+    </div>
+  </aside>
+
+  <main class="flex-1 min-w-0 overflow-y-auto">
+    <div *ngIf="!selectedPatient && !isLoading" class="flex h-full flex-col items-center justify-center text-center text-slate-400">
+      <i class="pi pi-users text-5xl text-slate-300"></i>
+      <p class="mt-4 text-lg font-semibold text-slate-600">Select a patient to view visit history</p>
+    </div>
+
+    <ng-container *ngIf="selectedPatient as patient">
+      <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900">{{ patient.name }}</h1>
+            <p class="mt-1 text-sm text-slate-500">
+              {{ patient.gender || 'Gender not set' }}
+              <span *ngIf="patient.age">, {{ patient.age }} years</span>
+              <span *ngIf="patient.mobile"> - {{ patient.mobile }}</span>
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p class="text-[11px] font-semibold uppercase text-slate-400">Visits</p>
+              <p class="text-lg font-bold text-slate-800">{{ patient.visits.length }}</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p class="text-[11px] font-semibold uppercase text-slate-400">Diagnosis</p>
+              <p class="text-lg font-bold text-slate-800">{{ patient.currentDiagnosis.length }}</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p class="text-[11px] font-semibold uppercase text-slate-400">Latest</p>
+              <p class="text-sm font-bold text-slate-800">{{ formatDate(patient.latestVisitDate) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2" *ngIf="patient.currentDiagnosis.length > 0">
+          <span
+            *ngFor="let diagnosis of patient.currentDiagnosis"
+            class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+            {{ diagnosis }}
+          </span>
+        </div>
+      </header>
+
+      <section class="p-6">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800">Visit Timeline</h2>
+            <p class="text-sm text-slate-500">{{ totalVisits }} visits found across current results</p>
+          </div>
+        </div>
+
+        <ol class="relative ml-3 border-l-2 border-blue-100">
+          <li
+            *ngFor="let visit of patient.visits; trackBy: trackByVisitDate"
+            class="relative mb-5 pl-6">
+            <span class="absolute -left-[9px] top-5 h-4 w-4 rounded-full border-2 border-white bg-blue-500 shadow"></span>
+
+            <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 class="text-base font-bold text-slate-800">{{ formatDate(visit.date) }}</h3>
+                  <p class="mt-1 text-sm text-slate-500">{{ visit.visitReason || 'No visit reason recorded' }}</p>
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-2">
+                  <span class="rounded-full border px-2.5 py-1 text-xs font-semibold" [ngClass]="getStatusClass(visit.status)">
+                    {{ visit.status || 'Waiting' }}
+                  </span>
+                  <span class="rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="getPaymentClass(visit.paymentMode)">
+                    {{ visit.paymentMode || 'QR' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-4 pt-4 lg:grid-cols-[220px,1fr]">
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between gap-3">
+                    <span class="text-slate-500">Token</span>
+                    <span class="font-semibold text-slate-800">{{ visit.tokenNumber || '-' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <span class="text-slate-500">Fee</span>
+                    <span class="font-semibold text-slate-800">{{ (visit.consultationFee || 0) | currency:'INR':'symbol':'1.0-0' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-3" *ngIf="visit.nextVisitDate">
+                    <span class="text-slate-500">Next Visit</span>
+                    <span class="font-semibold text-slate-800">{{ formatDate(visit.nextVisitDate) }}</span>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div *ngIf="visit.diagnoses.length > 0">
+                    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Diagnosis</p>
+                    <div class="flex flex-wrap gap-2">
+                      <span *ngFor="let diagnosis of visit.diagnoses" class="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        {{ diagnosis }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Prescription</p>
+                    <div *ngIf="visit.medicines.length > 0; else noMedicines" class="overflow-hidden rounded-lg border border-slate-200">
+                      <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                          <tr>
+                            <th class="px-3 py-2">Medicine</th>
+                            <th class="px-3 py-2">Dosage</th>
+                            <th class="px-3 py-2">Duration</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                          <tr *ngFor="let medicine of visit.medicines; trackBy: trackByMedicine">
+                            <td class="px-3 py-2 font-medium text-slate-800">{{ medicine.medicineName || '-' }}</td>
+                            <td class="px-3 py-2 text-slate-600">{{ medicine.dosage || '-' }}</td>
+                            <td class="px-3 py-2 text-slate-600">{{ getMedicineDuration(medicine) || '-' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <ng-template #noMedicines>
+                      <p class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">
+                        No medicines recorded for this visit.
+                      </p>
+                    </ng-template>
+                  </div>
+
+                  <div *ngIf="visit.notes">
+                    <p class="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Notes</p>
+                    <p class="whitespace-pre-wrap rounded-lg bg-amber-50 px-3 py-2 text-sm text-slate-700">{{ visit.notes }}</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </li>
+        </ol>
+
+        <div *ngIf="patient.visits.length === 0" class="rounded-lg border border-dashed border-slate-200 bg-white py-12 text-center text-slate-400">
+          No visits found for the selected filters.
+        </div>
+      </section>
+    </ng-container>
+  </main>
+</div>
