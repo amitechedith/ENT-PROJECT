@@ -8,6 +8,8 @@ yarn.lock
 dist/
 build/
 .angular/
+backups/
+ent-backend/backups/
 
 # Environment files
 .env

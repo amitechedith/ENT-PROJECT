@@ -18,6 +18,10 @@ const ensureColumn = async (connection, tableName, columnName, definition) => {
     }
 };
 
+const ensureUpdatedAt = async (connection, tableName) => {
+    await ensureColumn(connection, tableName, 'updatedAt', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+};
+
 const createTables = async () => {
     try {
         const connection = await db.getConnection();
@@ -42,6 +46,7 @@ const createTables = async () => {
         await ensureColumn(connection, 'users', 'doctorClinicPhone', 'VARCHAR(50) NULL');
         await ensureColumn(connection, 'users', 'doctorEmail', 'VARCHAR(255) NULL');
         await ensureColumn(connection, 'users', 'doctorTimings', 'VARCHAR(255) NULL');
+        await ensureUpdatedAt(connection, 'users');
         console.log('Users table created/verified.');
 
         // 2. Patients Table
@@ -63,33 +68,40 @@ const createTables = async () => {
         `);
         await ensureColumn(connection, 'patients', 'tokenNumber', "INT DEFAULT 0 AFTER latestVisitDate");
         await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR' AFTER consultationFee");
+        await ensureUpdatedAt(connection, 'patients');
         console.log('Patients table created/verified.');
 
         // 3. Medicines Master Table
         await connection.query(`
             CREATE TABLE IF NOT EXISTS medicines (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL UNIQUE
+                name VARCHAR(255) NOT NULL UNIQUE,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
+        await ensureUpdatedAt(connection, 'medicines');
         console.log('Medicines table created/verified.');
 
         // 4. Diagnoses Master Table
         await connection.query(`
             CREATE TABLE IF NOT EXISTS diagnoses (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL UNIQUE
+                name VARCHAR(255) NOT NULL UNIQUE,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
+        await ensureUpdatedAt(connection, 'diagnoses');
         console.log('Diagnoses table created/verified.');
 
         // 5. Dosages Master Table
         await connection.query(`
             CREATE TABLE IF NOT EXISTS dosages (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL UNIQUE
+                name VARCHAR(255) NOT NULL UNIQUE,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
+        await ensureUpdatedAt(connection, 'dosages');
         console.log('Dosages table created/verified.');
 
         // 6. Prescriptions Table
@@ -100,9 +112,11 @@ const createTables = async () => {
                 date DATE NOT NULL,
                 notes TEXT,
                 nextVisitDate DATE,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (patientId) REFERENCES patients(id) ON DELETE CASCADE
             )
         `);
+        await ensureUpdatedAt(connection, 'prescriptions');
         console.log('Prescriptions table created/verified.');
 
         // 7. Prescription Medicines Table (Many-to-Many / Detail)
@@ -115,10 +129,12 @@ const createTables = async () => {
                 dosage VARCHAR(100),
                 duration VARCHAR(100),
                 instructions TEXT,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (prescriptionId) REFERENCES prescriptions(id) ON DELETE CASCADE,
                 FOREIGN KEY (medicineId) REFERENCES medicines(id) ON DELETE SET NULL
             )
         `);
+        await ensureUpdatedAt(connection, 'prescription_medicines');
         console.log('Prescription Medicines table created/verified.');
 
         // 8. Patient Current Diagnosis (Many-to-Many map for "currentDiagnosis" array in JSON)
@@ -128,12 +144,29 @@ const createTables = async () => {
              CREATE TABLE IF NOT EXISTS patient_diagnoses (
                 patientId INT,
                 diagnosisName VARCHAR(255),
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (patientId, diagnosisName),
                 FOREIGN KEY (patientId) REFERENCES patients(id) ON DELETE CASCADE
              )
         `);
+        await ensureUpdatedAt(connection, 'patient_diagnoses');
         console.log('Patient Diagnoses table created/verified.');
 
+        // 9. Export Runs Table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS export_runs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                exportType VARCHAR(100) NOT NULL,
+                status VARCHAR(30) NOT NULL,
+                filePath TEXT,
+                affectedDates TEXT,
+                refreshedSheets TEXT,
+                message TEXT,
+                startedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completedAt TIMESTAMP NULL
+            )
+        `);
+        console.log('Export Runs table created/verified.');
 
         connection.release();
         return true;

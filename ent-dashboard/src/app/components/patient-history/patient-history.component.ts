@@ -3,6 +3,8 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PatientHistory, PatientHistoryMedicine, PatientHistoryVisit } from '../../models/patient-history.model';
 import { PatientService } from '../../services/patient.service';
+import { AuthService } from '../../services/auth.service';
+import { User } from '../../models/user.model';
 
 @Component({
   selector: 'app-patient-history',
@@ -18,14 +20,20 @@ export class PatientHistoryComponent implements OnInit {
   fromDate = '';
   toDate = '';
   isLoading = false;
+  isExporting = false;
   errorMessage = '';
+  exportMessage = '';
+  exportError = '';
+  currentUser: User | null = null;
 
   constructor(
     private patientService: PatientService,
+    private authService: AuthService,
     private datePipe: DatePipe
   ) { }
 
   ngOnInit(): void {
+    this.currentUser = this.authService.currentUserValue;
     this.loadHistory();
   }
 
@@ -75,6 +83,10 @@ export class PatientHistoryComponent implements OnInit {
 
   get hasFilters(): boolean {
     return !!this.searchText.trim() || !!this.fromDate || !!this.toDate;
+  }
+
+  get canExportBackup(): boolean {
+    return this.currentUser?.role === 'admin' || this.currentUser?.role === 'doctor';
   }
 
   getLatestVisit(patient: PatientHistory): PatientHistoryVisit | undefined {
@@ -130,6 +142,58 @@ export class PatientHistoryComponent implements OnInit {
 
   trackByMedicine(index: number, medicine: PatientHistoryMedicine): string {
     return `${medicine.id || index}-${medicine.medicineName || ''}`;
+  }
+
+  exportBackup(): void {
+    if (!this.canExportBackup || !this.currentUser) {
+      return;
+    }
+
+    this.isExporting = true;
+    this.exportMessage = '';
+    this.exportError = '';
+
+    this.patientService.exportPatientHistoryBackup(this.currentUser.role).subscribe({
+      next: (result) => {
+        this.patientService.downloadPatientHistoryBackup(this.currentUser!.role).subscribe({
+          next: (blob) => {
+            this.saveBlob(blob, result.fileName || 'ent-clinic-patient-history-backup.xlsx');
+            this.exportMessage = this.buildExportMessage(result.affectedDates || [], result.refreshedSheets || []);
+            this.isExporting = false;
+          },
+          error: (err) => {
+            console.error('Failed to download patient history backup', err);
+            this.exportError = 'Backup was created, but download failed.';
+            this.isExporting = false;
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Failed to export patient history backup', err);
+        this.exportError = err.error?.message || 'Unable to export patient history backup.';
+        this.isExporting = false;
+      }
+    });
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.click();
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  private buildExportMessage(affectedDates: string[], refreshedSheets: string[]): string {
+    const dateCount = affectedDates.length;
+    const sheetCount = refreshedSheets.length;
+
+    if (dateCount === 0) {
+      return `Backup downloaded. No visit date sheets needed refresh; ${sheetCount} workbook sheet${sheetCount === 1 ? '' : 's'} checked/refreshed.`;
+    }
+
+    return `Backup downloaded. Refreshed ${dateCount} visit date sheet${dateCount === 1 ? '' : 's'} and ${sheetCount} workbook sheet${sheetCount === 1 ? '' : 's'}.`;
   }
 
   private keepOrSelectPatient(patientId?: number): PatientHistory | undefined {

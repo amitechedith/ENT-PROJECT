@@ -11,6 +11,7 @@ const app = express();
 const authRoutes = require('./routes/auth.routes');
 const masterRoutes = require('./routes/master.routes');
 const patientRoutes = require('./routes/patient.routes');
+const exportRoutes = require('./routes/export.routes');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -20,6 +21,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/export', exportRoutes);
 
 // Serve Angular SPA static files in production
 if (process.env.NODE_ENV === 'production') {

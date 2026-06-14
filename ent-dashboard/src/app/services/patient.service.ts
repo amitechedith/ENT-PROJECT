@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Patient } from '../models/patient.model';
 import { PatientHistory } from '../models/patient-history.model';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -36,6 +36,31 @@ export class PatientService {
     }
 
     return this.http.get<PatientHistory[]>(`${this.apiUrl}/history`, { params });
+  }
+
+  exportPatientHistoryBackup(role: string): Observable<{
+    message: string;
+    fileName: string;
+    affectedDates: string[];
+    refreshedSheets: string[];
+    downloadUrl: string;
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      fileName: string;
+      affectedDates: string[];
+      refreshedSheets: string[];
+      downloadUrl: string;
+    }>(`${environment.apiUrl}/export/patient-history`, {}, { headers });
+  }
+
+  downloadPatientHistoryBackup(role: string): Observable<Blob> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.get(`${environment.apiUrl}/export/patient-history/download`, {
+      headers,
+      responseType: 'blob'
+    });
   }
 
   saveOrUpdatePatient(patient: Patient): Observable<any> {
