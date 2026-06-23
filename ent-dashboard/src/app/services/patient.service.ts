@@ -63,6 +63,78 @@ export class PatientService {
     });
   }
 
+  exportSqlBackup(role: string): Observable<{
+    message: string;
+    fileName: string;
+    tableCount: number;
+    downloadUrl: string;
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      fileName: string;
+      tableCount: number;
+      downloadUrl: string;
+    }>(`${environment.apiUrl}/export/sql`, {}, { headers });
+  }
+
+  downloadSqlBackup(role: string): Observable<Blob> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.get(`${environment.apiUrl}/export/sql/download`, {
+      headers,
+      responseType: 'blob'
+    });
+  }
+
+  exportSqlTableBackups(role: string): Observable<{
+    message: string;
+    tableCount: number;
+    files: Array<{ table: string; fileName: string; downloadUrl: string }>;
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      tableCount: number;
+      files: Array<{ table: string; fileName: string; downloadUrl: string }>;
+    }>(`${environment.apiUrl}/export/sql/tables`, {}, { headers });
+  }
+
+  downloadSqlTableBackup(role: string, table: string): Observable<Blob> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.get(`${environment.apiUrl}/export/sql/tables/${table}/download`, {
+      headers,
+      responseType: 'blob'
+    });
+  }
+
+  importSqlBackup(role: string, sql: string): Observable<{
+    message: string;
+    statementCount: number;
+    tableCount: number;
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      statementCount: number;
+      tableCount: number;
+    }>(`${environment.apiUrl}/export/sql/import`, { sql }, { headers });
+  }
+
+  importSqlTableBackups(role: string, files: Array<{ fileName: string; sql: string }>): Observable<{
+    message: string;
+    statementCount: number;
+    tableCount: number;
+    importedTables: string[];
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      statementCount: number;
+      tableCount: number;
+      importedTables: string[];
+    }>(`${environment.apiUrl}/export/sql/tables/import`, { files }, { headers });
+  }
+
   saveOrUpdatePatient(patient: Patient): Observable<any> {
     if (patient.id && patient.id > 0) {
       // Update not fully implemented in backend for full details, only status/diagnosis

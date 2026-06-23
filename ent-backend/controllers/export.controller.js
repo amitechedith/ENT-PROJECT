@@ -7,6 +7,21 @@ const EXPORT_TYPE = 'patient-history';
 const BACKUP_DIR = path.join(__dirname, '..', 'backups');
 const BACKUP_FILE_NAME = 'ent-clinic-patient-history-backup.xlsx';
 const BACKUP_FILE_PATH = path.join(BACKUP_DIR, BACKUP_FILE_NAME);
+const SQL_BACKUP_FILE_NAME = 'ent-clinic-full-database-backup.sql';
+const SQL_BACKUP_FILE_PATH = path.join(BACKUP_DIR, SQL_BACKUP_FILE_NAME);
+const SQL_TABLE_BACKUP_DIR = path.join(BACKUP_DIR, 'sql-tables');
+
+const SQL_TABLES = [
+    { name: 'users', orderBy: ['id'] },
+    { name: 'patients', orderBy: ['id'] },
+    { name: 'medicines', orderBy: ['id'] },
+    { name: 'diagnoses', orderBy: ['id'] },
+    { name: 'dosages', orderBy: ['id'] },
+    { name: 'prescriptions', orderBy: ['id'] },
+    { name: 'prescription_medicines', orderBy: ['id'] },
+    { name: 'patient_diagnoses', orderBy: ['patientId', 'diagnosisName'] },
+    { name: 'export_runs', orderBy: ['id'] }
+];
 
 const VISIT_COLUMNS = [
     { header: 'Patient ID', key: 'patientId', width: 12 },
@@ -58,6 +73,11 @@ const ensureBackupDir = () => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
 };
 
+const ensureSqlTableBackupDir = () => {
+    ensureBackupDir();
+    fs.mkdirSync(SQL_TABLE_BACKUP_DIR, { recursive: true });
+};
+
 const getRequesterRole = (req) => {
     return String(req.headers['x-user-role'] || req.body?.role || req.query?.role || '').toLowerCase();
 };
@@ -72,12 +92,195 @@ const assertCanExport = (req, res) => {
     return true;
 };
 
+const assertCanImport = (req, res) => {
+    const role = getRequesterRole(req);
+    if (role !== 'admin') {
+        res.status(403).json({ message: 'Only admin users can import SQL database backups' });
+        return false;
+    }
+
+    return true;
+};
+
 const formatDateTime = (value) => {
     if (!value) {
         return '';
     }
 
     return value instanceof Date ? value.toISOString().replace('T', ' ').slice(0, 19) : String(value);
+};
+
+const isSafeIdentifier = (value) => /^[A-Za-z0-9_]+$/.test(value);
+
+const quoteIdentifier = (value) => {
+    if (!isSafeIdentifier(value)) {
+        throw new Error(`Unsafe SQL identifier: ${value}`);
+    }
+
+    return `\`${value}\``;
+};
+
+const formatSqlValue = (value) => {
+    if (value === null || value === undefined) {
+        return 'NULL';
+    }
+
+    if (value instanceof Date) {
+        return db.escape(formatDateTime(value));
+    }
+
+    return db.escape(value);
+};
+
+const getTableColumns = async (tableName) => {
+    const [columns] = await db.query(`SHOW COLUMNS FROM ${quoteIdentifier(tableName)}`);
+    return columns.map(column => column.Field);
+};
+
+const getTableRows = async (tableConfig, columns) => {
+    const columnSql = columns.map(quoteIdentifier).join(', ');
+    const orderSql = tableConfig.orderBy
+        .filter(column => columns.includes(column))
+        .map(quoteIdentifier)
+        .join(', ');
+    const query = `SELECT ${columnSql} FROM ${quoteIdentifier(tableConfig.name)}${orderSql ? ` ORDER BY ${orderSql}` : ''}`;
+    const [rows] = await db.query(query);
+    return rows;
+};
+
+const buildInsertStatement = (tableName, columns, rows) => {
+    if (rows.length === 0) {
+        return `-- No rows for ${quoteIdentifier(tableName)}`;
+    }
+
+    const columnSql = columns.map(quoteIdentifier).join(', ');
+    const valuesSql = rows
+        .map(row => `(${columns.map(column => formatSqlValue(row[column])).join(', ')})`)
+        .join(',\n');
+
+    return `INSERT INTO ${quoteIdentifier(tableName)} (${columnSql}) VALUES\n${valuesSql}`;
+};
+
+const buildSqlBackup = async () => {
+    const lines = [
+        '-- ENT Clinic full database backup',
+        `-- Generated at: ${formatDateTime(new Date())}`,
+        '-- Importing this file replaces data in the listed application tables.',
+        'SET FOREIGN_KEY_CHECKS=0',
+        ''
+    ];
+
+    for (const tableConfig of [...SQL_TABLES].reverse()) {
+        lines.push(`DELETE FROM ${quoteIdentifier(tableConfig.name)}`);
+    }
+
+    lines.push('');
+
+    for (const tableConfig of SQL_TABLES) {
+        const columns = await getTableColumns(tableConfig.name);
+        const rows = await getTableRows(tableConfig, columns);
+        lines.push(`-- Data for table ${quoteIdentifier(tableConfig.name)}`);
+        lines.push(buildInsertStatement(tableConfig.name, columns, rows));
+        lines.push('');
+    }
+
+    lines.push('SET FOREIGN_KEY_CHECKS=1');
+    lines.push('');
+
+    return `${lines.join(';\n')}\n`;
+};
+
+const getSqlTableConfig = (tableName) => {
+    return SQL_TABLES.find(table => table.name === tableName);
+};
+
+const getSqlTableBackupFileName = (tableName) => {
+    return `ent-clinic-${tableName}.sql`;
+};
+
+const getSqlTableBackupFilePath = (tableName) => {
+    return path.join(SQL_TABLE_BACKUP_DIR, getSqlTableBackupFileName(tableName));
+};
+
+const buildSqlTableBackup = async (tableConfig) => {
+    const columns = await getTableColumns(tableConfig.name);
+    const rows = await getTableRows(tableConfig, columns);
+    const lines = [
+        `-- ENT Clinic table backup: ${tableConfig.name}`,
+        `-- Generated at: ${formatDateTime(new Date())}`,
+        '-- Importing this file replaces data for this table.',
+        'SET FOREIGN_KEY_CHECKS=0',
+        `DELETE FROM ${quoteIdentifier(tableConfig.name)}`,
+        buildInsertStatement(tableConfig.name, columns, rows),
+        'SET FOREIGN_KEY_CHECKS=1',
+        ''
+    ];
+
+    return `${lines.join(';\n')}\n`;
+};
+
+const splitSqlStatements = (sql) => {
+    const statements = [];
+    let current = '';
+    let quote = null;
+    let isEscaped = false;
+
+    for (const char of sql) {
+        current += char;
+
+        if (isEscaped) {
+            isEscaped = false;
+            continue;
+        }
+
+        if (char === '\\' && quote) {
+            isEscaped = true;
+            continue;
+        }
+
+        if ((char === '\'' || char === '"') && (!quote || quote === char)) {
+            quote = quote === char ? null : char;
+            continue;
+        }
+
+        if (char === ';' && !quote) {
+            const statement = current.slice(0, -1).trim();
+            if (statement) {
+                statements.push(statement);
+            }
+            current = '';
+        }
+    }
+
+    const tail = current.trim();
+    if (tail) {
+        statements.push(tail);
+    }
+
+    return statements;
+};
+
+const stripSqlComments = (sql) => {
+    return sql
+        .split('\n')
+        .filter(line => !line.trim().startsWith('--'))
+        .join('\n');
+};
+
+const isAllowedImportStatement = (statement) => {
+    const normalized = statement.trim().replace(/\s+/g, ' ').toUpperCase();
+    return normalized === 'SET FOREIGN_KEY_CHECKS=0'
+        || normalized === 'SET FOREIGN_KEY_CHECKS=1'
+        || SQL_TABLES.some(table => normalized.startsWith(`DELETE FROM \`${table.name.toUpperCase()}\``))
+        || SQL_TABLES.some(table => normalized.startsWith(`INSERT INTO \`${table.name.toUpperCase()}\``));
+};
+
+const getStatementTableName = (statement) => {
+    const match = statement
+        .trim()
+        .match(/^(?:DELETE\s+FROM|INSERT\s+INTO)\s+`?([A-Za-z0-9_]+)`?/i);
+
+    return match?.[1] || null;
 };
 
 const applySheetStyle = (worksheet, columnCount) => {
@@ -409,4 +612,237 @@ exports.downloadPatientHistoryBackup = async (req, res) => {
     }
 
     res.download(BACKUP_FILE_PATH, BACKUP_FILE_NAME);
+};
+
+exports.exportFullDatabaseSqlBackup = async (req, res) => {
+    if (!assertCanExport(req, res)) {
+        return;
+    }
+
+    try {
+        ensureBackupDir();
+        const sql = await buildSqlBackup();
+        fs.writeFileSync(SQL_BACKUP_FILE_PATH, sql, 'utf8');
+
+        res.json({
+            message: 'SQL database backup exported successfully',
+            fileName: SQL_BACKUP_FILE_NAME,
+            tableCount: SQL_TABLES.length,
+            downloadUrl: '/api/export/sql/download'
+        });
+    } catch (error) {
+        console.error('SQL export failed:', error);
+        res.status(500).json({ message: 'SQL database backup export failed', error: error.message });
+    }
+};
+
+exports.downloadFullDatabaseSqlBackup = async (req, res) => {
+    if (!assertCanExport(req, res)) {
+        return;
+    }
+
+    if (!fs.existsSync(SQL_BACKUP_FILE_PATH)) {
+        return res.status(404).json({ message: 'No SQL database backup file found yet' });
+    }
+
+    res.download(SQL_BACKUP_FILE_PATH, SQL_BACKUP_FILE_NAME);
+};
+
+exports.exportSqlTableBackups = async (req, res) => {
+    if (!assertCanExport(req, res)) {
+        return;
+    }
+
+    try {
+        ensureSqlTableBackupDir();
+
+        const files = [];
+        for (const tableConfig of SQL_TABLES) {
+            const sql = await buildSqlTableBackup(tableConfig);
+            const fileName = getSqlTableBackupFileName(tableConfig.name);
+            fs.writeFileSync(getSqlTableBackupFilePath(tableConfig.name), sql, 'utf8');
+            files.push({
+                table: tableConfig.name,
+                fileName,
+                downloadUrl: `/api/export/sql/tables/${tableConfig.name}/download`
+            });
+        }
+
+        res.json({
+            message: 'SQL table backups exported successfully',
+            tableCount: files.length,
+            files
+        });
+    } catch (error) {
+        console.error('SQL table export failed:', error);
+        res.status(500).json({ message: 'SQL table backup export failed', error: error.message });
+    }
+};
+
+exports.downloadSqlTableBackup = async (req, res) => {
+    if (!assertCanExport(req, res)) {
+        return;
+    }
+
+    const tableName = req.params.table;
+    const tableConfig = getSqlTableConfig(tableName);
+    if (!tableConfig) {
+        return res.status(400).json({ message: 'Unsupported SQL backup table' });
+    }
+
+    const filePath = getSqlTableBackupFilePath(tableName);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'No SQL table backup file found yet' });
+    }
+
+    res.download(filePath, getSqlTableBackupFileName(tableName));
+};
+
+exports.importFullDatabaseSqlBackup = async (req, res) => {
+    if (!assertCanImport(req, res)) {
+        return;
+    }
+
+    const sql = typeof req.body?.sql === 'string' ? req.body.sql : '';
+    if (!sql.trim()) {
+        return res.status(400).json({ message: 'SQL backup content is required' });
+    }
+
+    const statements = splitSqlStatements(stripSqlComments(sql));
+    if (statements.length === 0) {
+        return res.status(400).json({ message: 'No SQL statements found in backup file' });
+    }
+
+    const unsupportedStatement = statements.find(statement => !isAllowedImportStatement(statement));
+    if (unsupportedStatement) {
+        return res.status(400).json({
+            message: 'Unsupported SQL statement found. Import only accepts SQL files generated by this application.',
+            statement: unsupportedStatement.slice(0, 120)
+        });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        for (const statement of statements) {
+            await connection.query(statement);
+        }
+        await connection.commit();
+
+        res.json({
+            message: 'SQL database backup imported successfully',
+            statementCount: statements.length,
+            tableCount: SQL_TABLES.length
+        });
+    } catch (error) {
+        await connection.query('SET FOREIGN_KEY_CHECKS=1');
+        await connection.rollback();
+        console.error('SQL import failed:', error);
+        res.status(500).json({ message: 'SQL database backup import failed', error: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+exports.importSqlTableBackups = async (req, res) => {
+    if (!assertCanImport(req, res)) {
+        return;
+    }
+
+    const files = Array.isArray(req.body?.files) ? req.body.files : [];
+    if (files.length === 0) {
+        return res.status(400).json({ message: 'At least one SQL table backup file is required' });
+    }
+
+    const selectedTables = new Set();
+    const insertsByTable = new Map();
+    let statementCount = 0;
+
+    for (const file of files) {
+        const sql = typeof file?.sql === 'string' ? file.sql : '';
+        if (!sql.trim()) {
+            return res.status(400).json({ message: `SQL content is required for ${file?.fileName || 'selected file'}` });
+        }
+
+        const statements = splitSqlStatements(stripSqlComments(sql));
+        if (statements.length === 0) {
+            return res.status(400).json({ message: `No SQL statements found in ${file?.fileName || 'selected file'}` });
+        }
+
+        const unsupportedStatement = statements.find(statement => !isAllowedImportStatement(statement));
+        if (unsupportedStatement) {
+            return res.status(400).json({
+                message: 'Unsupported SQL statement found. Import only accepts SQL files generated by this application.',
+                statement: unsupportedStatement.slice(0, 120)
+            });
+        }
+
+        for (const statement of statements) {
+            const normalized = statement.trim().replace(/\s+/g, ' ').toUpperCase();
+            if (normalized === 'SET FOREIGN_KEY_CHECKS=0' || normalized === 'SET FOREIGN_KEY_CHECKS=1') {
+                continue;
+            }
+
+            const tableName = getStatementTableName(statement);
+            if (!tableName || !getSqlTableConfig(tableName)) {
+                return res.status(400).json({ message: 'Unsupported table found in SQL table backup' });
+            }
+
+            if (tableName === 'users') {
+                return res.status(400).json({
+                    message: 'Users table import is disabled from UI. Please import users.sql manually first.'
+                });
+            }
+
+            selectedTables.add(tableName);
+            if (normalized.startsWith('INSERT INTO')) {
+                const existingStatements = insertsByTable.get(tableName) || [];
+                existingStatements.push(statement);
+                insertsByTable.set(tableName, existingStatements);
+                statementCount += 1;
+            }
+        }
+    }
+
+    if (selectedTables.size === 0) {
+        return res.status(400).json({ message: 'No importable non-user table data found in selected files' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        await connection.query('SET FOREIGN_KEY_CHECKS=0');
+
+        for (const tableConfig of [...SQL_TABLES].reverse()) {
+            if (selectedTables.has(tableConfig.name)) {
+                await connection.query(`DELETE FROM ${quoteIdentifier(tableConfig.name)}`);
+            }
+        }
+
+        for (const tableConfig of SQL_TABLES) {
+            const insertStatements = insertsByTable.get(tableConfig.name) || [];
+            for (const statement of insertStatements) {
+                await connection.query(statement);
+            }
+        }
+
+        await connection.query('SET FOREIGN_KEY_CHECKS=1');
+        await connection.commit();
+
+        res.json({
+            message: 'SQL table backups imported successfully',
+            statementCount,
+            tableCount: selectedTables.size,
+            importedTables: SQL_TABLES
+                .filter(table => selectedTables.has(table.name))
+                .map(table => table.name)
+        });
+    } catch (error) {
+        await connection.query('SET FOREIGN_KEY_CHECKS=1');
+        await connection.rollback();
+        console.error('SQL table import failed:', error);
+        res.status(500).json({ message: 'SQL table backup import failed', error: error.message });
+    } finally {
+        connection.release();
+    }
 };

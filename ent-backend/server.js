@@ -14,8 +14,8 @@ const patientRoutes = require('./routes/patient.routes');
 const exportRoutes = require('./routes/export.routes');
 
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 // API Routes
 app.use('/api/auth', authRoutes);

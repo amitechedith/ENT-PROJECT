@@ -29,10 +29,10 @@
           Prescription
         </a>
 
-        <!-- <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
+        <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           History
-        </a> -->
+        </a>
 
         <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">

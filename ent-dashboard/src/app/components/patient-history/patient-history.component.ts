@@ -1,6 +1,7 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { PatientHistory, PatientHistoryMedicine, PatientHistoryVisit } from '../../models/patient-history.model';
 import { PatientService } from '../../services/patient.service';
 import { AuthService } from '../../services/auth.service';
@@ -21,9 +22,15 @@ export class PatientHistoryComponent implements OnInit {
   toDate = '';
   isLoading = false;
   isExporting = false;
+  isSqlExporting = false;
+  isSqlImporting = false;
+  isSqlTableExporting = false;
+  isSqlTableImporting = false;
   errorMessage = '';
   exportMessage = '';
   exportError = '';
+  sqlMessage = '';
+  sqlError = '';
   currentUser: User | null = null;
 
   constructor(
@@ -87,6 +94,10 @@ export class PatientHistoryComponent implements OnInit {
 
   get canExportBackup(): boolean {
     return this.currentUser?.role === 'admin' || this.currentUser?.role === 'doctor';
+  }
+
+  get canImportSqlBackup(): boolean {
+    return this.currentUser?.role === 'admin';
   }
 
   getLatestVisit(patient: PatientHistory): PatientHistoryVisit | undefined {
@@ -174,6 +185,157 @@ export class PatientHistoryComponent implements OnInit {
         this.isExporting = false;
       }
     });
+  }
+
+  exportSqlBackup(): void {
+    if (!this.canExportBackup || !this.currentUser) {
+      return;
+    }
+
+    this.isSqlExporting = true;
+    this.sqlMessage = '';
+    this.sqlError = '';
+
+    this.patientService.exportSqlBackup(this.currentUser.role).subscribe({
+      next: (result) => {
+        this.patientService.downloadSqlBackup(this.currentUser!.role).subscribe({
+          next: (blob) => {
+            this.saveBlob(blob, result.fileName || 'ent-clinic-full-database-backup.sql');
+            this.sqlMessage = `SQL backup downloaded with ${result.tableCount || 0} tables.`;
+            this.isSqlExporting = false;
+          },
+          error: (err) => {
+            console.error('Failed to download SQL backup', err);
+            this.sqlError = 'SQL backup was created, but download failed.';
+            this.isSqlExporting = false;
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Failed to export SQL backup', err);
+        this.sqlError = err.error?.message || 'Unable to export SQL backup.';
+        this.isSqlExporting = false;
+      }
+    });
+  }
+
+  async exportSqlTableBackups(): Promise<void> {
+    if (!this.canExportBackup || !this.currentUser) {
+      return;
+    }
+
+    this.isSqlTableExporting = true;
+    this.sqlMessage = '';
+    this.sqlError = '';
+
+    try {
+      const result = await firstValueFrom(this.patientService.exportSqlTableBackups(this.currentUser.role));
+      const files = result.files || [];
+
+      for (const file of files) {
+        const blob = await firstValueFrom(this.patientService.downloadSqlTableBackup(this.currentUser.role, file.table));
+        this.saveBlob(blob, file.fileName || `ent-clinic-${file.table}.sql`);
+      }
+
+      this.sqlMessage = `Table SQL backup downloaded with ${files.length || 0} table file${files.length === 1 ? '' : 's'}. Import users.sql manually, then use Import Tables for the rest.`;
+    } catch (err: any) {
+      console.error('Failed to export SQL table backups', err);
+      this.sqlError = err.error?.message || 'Unable to export SQL table backups.';
+    } finally {
+      this.isSqlTableExporting = false;
+    }
+  }
+
+  importSqlBackup(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+
+    if (!file || !this.currentUser || !this.canImportSqlBackup) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Importing this SQL backup will replace current clinic data, including admin username/password. Continue?'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.isSqlImporting = true;
+    this.sqlMessage = '';
+    this.sqlError = '';
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const sql = String(reader.result || '');
+      this.patientService.importSqlBackup(this.currentUser!.role, sql).subscribe({
+        next: (result) => {
+          this.sqlMessage = `SQL backup imported successfully. ${result.tableCount || 0} tables restored.`;
+          this.isSqlImporting = false;
+          this.loadHistory();
+        },
+        error: (err) => {
+          console.error('Failed to import SQL backup', err);
+          this.sqlError = err.error?.message || 'Unable to import SQL backup.';
+          this.isSqlImporting = false;
+        }
+      });
+    };
+    reader.onerror = () => {
+      this.sqlError = 'Unable to read selected SQL file.';
+      this.isSqlImporting = false;
+    };
+    reader.readAsText(file);
+  }
+
+  async importSqlTableBackups(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    input.value = '';
+
+    if (files.length === 0 || !this.currentUser || !this.canImportSqlBackup) {
+      return;
+    }
+
+    const hasUsersFile = files.some(file => file.name.toLowerCase().includes('users'));
+    if (hasUsersFile) {
+      this.sqlError = 'users.sql must be imported manually. Select only non-user table SQL files here.';
+      this.sqlMessage = '';
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Importing these table SQL files will replace selected non-user clinic tables. Import users.sql manually first if needed. Continue?'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.isSqlTableImporting = true;
+    this.sqlMessage = '';
+    this.sqlError = '';
+
+    try {
+      const sqlFiles = await Promise.all(
+        files.map(async file => ({
+          fileName: file.name,
+          sql: await file.text()
+        }))
+      );
+
+      const result = await firstValueFrom(
+        this.patientService.importSqlTableBackups(this.currentUser.role, sqlFiles)
+      );
+      const importedTables = result.importedTables?.join(', ') || 'selected tables';
+      this.sqlMessage = `Table SQL imported successfully. Restored ${result.tableCount || 0} table${result.tableCount === 1 ? '' : 's'}: ${importedTables}.`;
+      this.loadHistory();
+    } catch (err: any) {
+      console.error('Failed to import SQL table backups', err);
+      this.sqlError = err.error?.message || 'Unable to import SQL table backups.';
+    } finally {
+      this.isSqlTableImporting = false;
+    }
   }
 
   private saveBlob(blob: Blob, fileName: string): void {
