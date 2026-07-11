@@ -23,6 +23,10 @@ export class DoctorDataService {
     return this.dataService.getPatientById(id);
   }
 
+  updatePatient(patient: Patient): Observable<any> {
+    return this.dataService.updatePatient(patient);
+  }
+
   getPatientPrescriptions(patientId: number): Observable<any[]> {
     return this.dataService.getPatientPrescriptions(patientId);
   }

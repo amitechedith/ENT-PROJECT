@@ -355,13 +355,16 @@ exports.updatePatientStatus = async (req, res) => {
 exports.updatePatient = async (req, res) => {
     try {
         console.log("Update Patient Body:", req.body);
-        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode } = req.body;
+        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode, medicalBackground } = req.body;
         const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalMedicalBackground = typeof medicalBackground === 'string'
+            ? medicalBackground.trim() || null
+            : medicalBackground ?? null;
         await db.query(`
             UPDATE patients 
-            SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, paymentMode=?, consultationFee=?, tokenNumber=?
+            SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, paymentMode=?, consultationFee=?, tokenNumber=?, medicalBackground=?
             WHERE id=?
-        `, [name, age, gender, mobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, req.params.id]);
+        `, [name, age, gender, mobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, finalMedicalBackground, req.params.id]);
 
         res.json({ message: 'Patient updated successfully' });
     } catch (error) {

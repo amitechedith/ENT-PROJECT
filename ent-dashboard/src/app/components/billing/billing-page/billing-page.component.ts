@@ -173,7 +173,13 @@ export class BillingPageComponent implements OnInit {
 
     this.doctorData.getPatientPrescriptions(patient.id).subscribe({
       next: (prescriptions) => {
-        patient.prescriptions = prescriptions || [];
+        patient.prescriptions = (prescriptions || []).map(prescription => ({
+          ...prescription,
+          medicines: (prescription.medicines || []).map((medicine: any) => ({
+            ...medicine,
+            daysToTake: this.getMedicineDays(medicine)
+          }))
+        }));
         this.loadedPrescriptionPatientIds.add(patient.id);
         this.pendingPatientId = null;
         this.selectedPatient = patient;
@@ -197,6 +203,10 @@ export class BillingPageComponent implements OnInit {
     return this.selectedPatient.prescriptions.find((prescription: any) =>
       String(prescription.date).startsWith(selectedDateKey)
     ) || this.selectedPatient.prescriptions[0];
+  }
+
+  get hasActivePrescriptionMedicines(): boolean {
+    return !!this.activePrescription?.medicines?.length;
   }
 
   printRx() {
@@ -249,7 +259,23 @@ export class BillingPageComponent implements OnInit {
 
   // Helper to check if patient has prescriptions
   hasPrescription(p: any): boolean {
-    return !!this.activePrescription;
+    return this.hasActivePrescriptionMedicines;
+  }
+
+  getMedicineDaysLabel(medicine: any): string {
+    const days = this.getMedicineDays(medicine);
+    return days > 0 ? `${days} Days` : (medicine?.duration || '-');
+  }
+
+  private getMedicineDays(medicine: any): number {
+    const explicitDays = Number(medicine?.daysToTake);
+    if (Number.isFinite(explicitDays) && explicitDays > 0) {
+      return explicitDays;
+    }
+
+    const duration = typeof medicine?.duration === 'string' ? medicine.duration : '';
+    const durationDays = Number(duration.match(/\d+/)?.[0]);
+    return Number.isFinite(durationDays) && durationDays > 0 ? durationDays : 0;
   }
 
   get doctorDisplayName(): string {

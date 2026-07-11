@@ -23,6 +23,11 @@ interface DateSummary {
   key: string;
 }
 
+interface PaymentSummary {
+  count: number;
+  total: number;
+}
+
 @Component({
   selector: 'app-patient-registration',
   standalone: true,
@@ -261,6 +266,38 @@ export class PatientRegistrationComponent implements OnInit {
       date.getFullYear() === today.getFullYear();
   }
 
+  get qrSummary(): PaymentSummary {
+    return this.getPaymentSummary(['QR']);
+  }
+
+  get cashSummary(): PaymentSummary {
+    return this.getPaymentSummary(['Cash']);
+  }
+
+  private getPaymentSummary(modes: Array<'QR' | 'Cash'>): PaymentSummary {
+    const allowedModes = new Set(modes);
+
+    return this.patients.reduce((summary, patient) => {
+      if (patient.status !== 'Payment Done') {
+        return summary;
+      }
+
+      const mode = this.normalizePaymentMode(patient.paymentMode);
+      if (!allowedModes.has(mode)) {
+        return summary;
+      }
+
+      return {
+        count: summary.count + 1,
+        total: summary.total + Number(patient.consultationFee || 0)
+      };
+    }, { count: 0, total: 0 });
+  }
+
+  private normalizePaymentMode(paymentMode?: string | null): 'QR' | 'Cash' {
+    return paymentMode === 'Cash' ? 'Cash' : 'QR';
+  }
+
   onSubmit() {
     this.patientService.createPatient(this.patient).subscribe({
       next: () => {
@@ -343,12 +380,15 @@ export class PatientRegistrationComponent implements OnInit {
   processPayment(patient: Patient) {
     this.patientService.updateStatus(patient.id!, 'Payment Done').subscribe({
       next: () => {
+        patient.status = 'Payment Done';
+        this.patients = this.patients.map(item =>
+          item.id === patient.id ? { ...item, status: 'Payment Done' } : item
+        );
         this.messageService.add({
           severity: 'success',
           summary: 'Payment Confirmed',
           detail: `Payment received for ${patient.name}.`
         });
-        this.loadPatientsForSelectedDate();
       },
       error: (err) => {
         this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to update payment status' });

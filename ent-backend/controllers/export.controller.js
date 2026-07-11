@@ -47,6 +47,13 @@ const VISIT_COLUMNS = [
     { header: 'Instructions', key: 'instructions', width: 28 }
 ];
 
+const PAYMENT_SUMMARY_COLUMNS = [
+    { header: 'Visit Date', key: 'visitDate', width: 14 },
+    { header: 'Payment Mode', key: 'paymentMode', width: 16 },
+    { header: 'Paid Patient Count', key: 'patientCount', width: 18 },
+    { header: 'Confirmed Fee Total', key: 'consultationFeeTotal', width: 22 }
+];
+
 const MASTER_COLUMNS = {
     users: [
         { header: 'ID', key: 'id', width: 18 },
@@ -497,6 +504,59 @@ const getSimpleMasterRows = async (tableName) => {
     return rows.map(row => ({ ...row, updatedAt: formatDateTime(row.updatedAt) }));
 };
 
+const getPaymentSummaryRows = async () => {
+    const [rows] = await db.query(`
+        SELECT
+            DATE_FORMAT(latestVisitDate, '%Y-%m-%d') AS visitDate,
+            CASE WHEN paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END AS paymentMode,
+            COUNT(*) AS patientCount,
+            COALESCE(SUM(consultationFee), 0) AS consultationFeeTotal
+        FROM patients
+        WHERE latestVisitDate IS NOT NULL
+          AND status = 'Payment Done'
+        GROUP BY latestVisitDate, CASE WHEN paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END
+        ORDER BY latestVisitDate DESC, paymentMode DESC
+    `);
+
+    const rowsByDate = new Map();
+    for (const row of rows) {
+        const visitDate = row.visitDate;
+        const dateRows = rowsByDate.get(visitDate) || [];
+        dateRows.push({
+            visitDate,
+            paymentMode: row.paymentMode,
+            patientCount: Number(row.patientCount || 0),
+            consultationFeeTotal: Number(row.consultationFeeTotal || 0)
+        });
+        rowsByDate.set(visitDate, dateRows);
+    }
+
+    const summaryRows = [];
+    for (const [visitDate, dateRows] of rowsByDate.entries()) {
+        const qrRow = dateRows.find(row => row.paymentMode === 'QR') || {
+            visitDate,
+            paymentMode: 'QR',
+            patientCount: 0,
+            consultationFeeTotal: 0
+        };
+        const cashRow = dateRows.find(row => row.paymentMode === 'Cash') || {
+            visitDate,
+            paymentMode: 'Cash',
+            patientCount: 0,
+            consultationFeeTotal: 0
+        };
+
+        summaryRows.push(qrRow, cashRow, {
+            visitDate,
+            paymentMode: 'QR + Cash',
+            patientCount: qrRow.patientCount + cashRow.patientCount,
+            consultationFeeTotal: qrRow.consultationFeeTotal + cashRow.consultationFeeTotal
+        });
+    }
+
+    return summaryRows;
+};
+
 const refreshMasterSheets = async (workbook) => {
     replaceWorksheet(workbook, 'Users', MASTER_COLUMNS.users, await getUsers());
     replaceWorksheet(workbook, 'Medicines Master', MASTER_COLUMNS.simpleMaster, await getSimpleMasterRows('medicines'));
@@ -577,6 +637,9 @@ exports.exportPatientHistoryBackup = async (req, res) => {
             await refreshMasterSheets(workbook);
             refreshedSheets.push('Users', 'Medicines Master', 'Diagnoses Master', 'Dosages Master');
         }
+
+        replaceWorksheet(workbook, 'Payment Summary', PAYMENT_SUMMARY_COLUMNS, await getPaymentSummaryRows());
+        refreshedSheets.push('Payment Summary');
 
         refreshExportInfoSheet(workbook, {
             generatedAt: formatDateTime(new Date()),

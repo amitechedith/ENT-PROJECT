@@ -19,6 +19,7 @@ import { DoctorDataService } from '../../../services/doctor-data.service';
 import { PrescriptionMedicine } from '../../../models/prescription-medicine.model';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
+import { forkJoin, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-doctor-dashboard',
@@ -270,7 +271,7 @@ export class DoctorDashboardComponent implements OnInit {
 
     this.doctorData.getPatientPrescriptions(patient.id).subscribe({
       next: (prescriptions) => {
-        patient.prescriptions = prescriptions || [];
+        patient.prescriptions = (prescriptions || []).map(prescription => this.normalizePrescription(prescription));
         this.loadedPrescriptionPatientIds.add(patient.id!);
         this.ensurePrescriptionExists();
       },
@@ -281,6 +282,27 @@ export class DoctorDashboardComponent implements OnInit {
         this.ensurePrescriptionExists();
       }
     });
+  }
+
+  private normalizePrescription(prescription: Prescription): Prescription {
+    return {
+      ...prescription,
+      medicines: (prescription.medicines || []).map(medicine => ({
+        ...medicine,
+        daysToTake: this.getMedicineDays(medicine)
+      }))
+    };
+  }
+
+  private getMedicineDays(medicine: Partial<PrescriptionMedicine>): number {
+    const explicitDays = Number(medicine.daysToTake);
+    if (Number.isFinite(explicitDays) && explicitDays > 0) {
+      return explicitDays;
+    }
+
+    const duration = typeof medicine.duration === 'string' ? medicine.duration : '';
+    const durationDays = Number(duration.match(/\d+/)?.[0]);
+    return Number.isFinite(durationDays) && durationDays > 0 ? durationDays : 5;
   }
 
   backToList(): void {
@@ -316,7 +338,7 @@ export class DoctorDashboardComponent implements OnInit {
         patientId: this.selectedPatient.id!,
         date: selectedDateStr,
         notes: '',
-        consultationFee: 500,
+        consultationFee: Number(this.selectedPatient.consultationFee || 0) || 500,
         medicines: []
       });
     }
@@ -369,34 +391,28 @@ export class DoctorDashboardComponent implements OnInit {
     const daysToTake = Number(this.newMedicineDraft.daysToTake || 0);
     const dosage = this.normalizeMasterValue(this.newMedicineDraft.dosage) || '1-0-1';
 
-    const commitMedicine = () => {
-      const alreadyAdded = pres.medicines.some(m => this.normalizeMasterValue(m.medicineName).toLowerCase() === medicineName.toLowerCase());
-      if (!alreadyAdded) {
-        pres.medicines.push({
-          prescriptionId: pres.id || 0,
-          medicineId: 0,
-          medicineName,
-          dosage,
-          daysToTake: daysToTake > 0 ? daysToTake : 5,
-        });
-      }
+    const alreadyAdded = pres.medicines.some(m => this.normalizeMasterValue(m.medicineName).toLowerCase() === medicineName.toLowerCase());
+    if (!alreadyAdded) {
+      pres.medicines.push({
+        prescriptionId: pres.id || 0,
+        medicineId: 0,
+        medicineName,
+        dosage,
+        daysToTake: daysToTake > 0 ? daysToTake : 5,
+      });
+    }
 
-      this.resetNewMedicineDraft();
-    };
+    this.resetNewMedicineDraft();
 
     if (!this.isValueInList(medicineName, this.medicines)) {
       this.doctorData.addMedicine(medicineName).subscribe({
         next: () => {
           this.medicines.push(medicineName);
           this.filteredMedicines = [...this.medicines];
-          commitMedicine();
         },
         error: (err) => console.error('Error adding medicine', err)
       });
-      return;
     }
-
-    commitMedicine();
   }
 
   removeMedicine(index: number): void {
@@ -706,9 +722,9 @@ export class DoctorDashboardComponent implements OnInit {
   }
 
   saveChanges(): void {
-    if (!this.selectedPatient || !this.selectedPatient.prescriptions) return;
+    if (!this.selectedPatient?.id) return;
 
-    // 1. Identify and Save New Diagnoses
+    this.selectedPatient.status = 'In Consultation';
     const currentDiagnoses = this.selectedPatient.currentDiagnosis || [];
     const newDiagnoses = currentDiagnoses
       .map(d => this.normalizeMasterValue(d))
@@ -724,80 +740,63 @@ export class DoctorDashboardComponent implements OnInit {
       });
     });
 
-    // 2. Identify and Save New Medicines
-    const currentPrescription = this.getCurrentPrescription();
     this.addDraftMedicineToPrescription();
+    const currentPrescription = this.getCurrentPrescription();
     console.log('Current prescription for today:', currentPrescription);
 
-    if (currentPrescription) {
-      // Check for new medicines
-      // medicines array contains objects { medicineName: string... }
-      currentPrescription.medicines.forEach(m => {
-        const medicineName = this.normalizeMasterValue(m.medicineName);
-        if (medicineName && !this.isValueInList(medicineName, this.medicines)) {
-          this.doctorData.addMedicine(medicineName).subscribe({
-            next: () => {
-              console.log('Added new medicine:', medicineName);
-              this.medicines.push(medicineName);
-            }
-          });
-        }
-      });
+    const saveRequests: Observable<any>[] = [
+      this.doctorData.updatePatient(this.selectedPatient)
+    ];
 
-      // Prepare payload for backend
+    if (currentDiagnoses.length > 0) {
+      saveRequests.push(this.doctorData.updatePatientDiagnosis(this.selectedPatient.id, currentDiagnoses));
+    }
+
+    if (currentPrescription) {
       const payload = {
         patientId: this.selectedPatient.id,
         date: currentPrescription.date,
         notes: currentPrescription.notes,
         nextVisitDate: null,
-        medicines: currentPrescription.medicines.map(m => ({
-          medicineId: m.medicineId,
-          medicineName: m.medicineName,
-          dosage: m.dosage,
-          duration: m.daysToTake ? `${m.daysToTake} days` : '',
-          instructions: ''
-        }))
+        medicines: currentPrescription.medicines
+          .map(m => ({
+            medicineId: m.medicineId,
+            medicineName: this.normalizeMasterValue(m.medicineName),
+            dosage: this.normalizeMasterValue(m.dosage),
+            duration: `${this.getMedicineDays(m)} days`,
+            instructions: ''
+          }))
+          .filter(m => !!m.medicineName)
       };
 
-      // 3. Update Patient Diagnosis Link
-      if (currentDiagnoses.length > 0) {
-        this.savePatientDiagnosis(this.selectedPatient.id!, currentDiagnoses);
-      }
+      saveRequests.push(this.doctorData.savePrescription(this.selectedPatient.id, payload));
+    }
 
-      this.doctorData.savePrescription(this.selectedPatient.id!, payload).subscribe({
-        next: (res) => {
-          // alert('Prescription & Data saved successfully!');
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Saved',
-            detail: 'Prescription & Data saved successfully!',
-            life: 1000
-          });
-          // this.backToList();
-        },
-        error: (err) => {
-          console.error(err);
-          alert('Error saving prescription');
-        }
-      });
-    } else {
-      if (currentDiagnoses.length > 0) {
-        this.savePatientDiagnosis(this.selectedPatient.id!, currentDiagnoses);
-        // alert('Diagnoses saved!');
+    forkJoin(saveRequests).subscribe({
+      next: () => {
+        this.displayedPatients = this.displayedPatients.map(patient =>
+          patient.id === this.selectedPatient?.id
+            ? { ...patient, status: 'In Consultation' }
+            : patient
+        );
+
         this.messageService.add({
           severity: 'success',
           summary: 'Saved',
-          detail: 'Diagnoses saved successfully!',
+          detail: currentPrescription ? 'Prescription & Data saved successfully!' : 'Patient data saved successfully!',
           life: 1000
         });
-        // this.backToList();
-      } else {
-        alert('No changes to save');
+      },
+      error: (err) => {
+        console.error(err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Unable to save consultation data',
+          life: 3000
+        });
       }
-    }
+    });
   }
 
-  savePatientDiagnosis(patientId: number, diagnoses: string[]) {
-    this.doctorData.updatePatientDiagnosis(patientId, diagnoses).subscribe();
-  }
 }

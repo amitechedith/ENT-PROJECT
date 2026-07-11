@@ -81,6 +81,7 @@ DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_mysql_password
 DB_NAME=ent_clinic_db
+ADMIN_PASSWORD=change_this_admin_password
 ```
 
 Use a fresh password for client deployment. Do not reuse your own local credentials.
@@ -289,6 +290,7 @@ DB_HOST=localhost
 DB_USER=ent_user
 DB_PASSWORD=change_me
 DB_NAME=ent_clinic_db
+ADMIN_PASSWORD=change_this_admin_password
 ```
 
 ## Quick Client Operator Steps

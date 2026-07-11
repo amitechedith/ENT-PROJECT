@@ -22,6 +22,49 @@ const ensureUpdatedAt = async (connection, tableName) => {
     await ensureColumn(connection, tableName, 'updatedAt', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 };
 
+const INITIAL_ADMIN_USER = {
+    id: '1',
+    username: 'admin',
+    fullName: 'System Admin',
+    mobile: '9999999999',
+    role: 'admin'
+};
+
+const ensureInitialAdminUser = async () => {
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminPassword) {
+        throw new Error('ADMIN_PASSWORD is required in ent-backend/.env for the initial admin login');
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.query(
+            `
+            INSERT INTO users (id, username, password, fullName, mobile, role)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                username = VALUES(username),
+                password = VALUES(password),
+                fullName = VALUES(fullName),
+                mobile = VALUES(mobile),
+                role = VALUES(role)
+            `,
+            [
+                INITIAL_ADMIN_USER.id,
+                INITIAL_ADMIN_USER.username,
+                adminPassword,
+                INITIAL_ADMIN_USER.fullName,
+                INITIAL_ADMIN_USER.mobile,
+                INITIAL_ADMIN_USER.role
+            ]
+        );
+        console.log('Initial admin user verified.');
+    } finally {
+        connection.release();
+    }
+};
+
 const createTables = async () => {
     try {
         const connection = await db.getConnection();
@@ -176,4 +219,4 @@ const createTables = async () => {
     }
 };
 
-module.exports = { createTables };
+module.exports = { createTables, ensureInitialAdminUser };

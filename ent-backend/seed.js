@@ -1,5 +1,5 @@
 const db = require('./config/db.config');
-const { createTables } = require('./models/index');
+const { createTables, ensureInitialAdminUser } = require('./models/index');
 
 const seedData = async () => {
     try {
@@ -15,9 +15,9 @@ const seedData = async () => {
         const connection = await db.getConnection();
 
         // 2. Seed Users
-        // Check if admin exists to avoid bad duplicates or just Ignore
+        await ensureInitialAdminUser();
+
         const users = [
-            ['1', 'admin', 'admin', 'System Admin', '9999999999', 'admin', null, null, null, null, null, null],
             ['2', 'doctor', 'doctor', 'Dr. Amit Panchal', '9876543210', 'doctor', 'MBBS, MS - ENT', '12345/MC', '123, Health Avenue, Medical City', '+91 98765 43210', 'doctor@email.com', '10AM - 2PM, 5PM - 9PM'],
             ['3', 'reception', 'reception', 'Reception Desk', '8888888888', 'receptionist', null, null, null, null, null, null],
             ['4', 'billing', 'billing', 'Billing Desk', '7777777777', 'billing', null, null, null, null, null, null]

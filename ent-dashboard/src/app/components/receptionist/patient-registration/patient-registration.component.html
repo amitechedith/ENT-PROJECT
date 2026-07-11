@@ -34,11 +34,13 @@
         </button>
       </div>
     </div>
+
   </div>
 
   <div class="bg-white rounded-xl shadow-lg p-6 border border-blue-100 w-full">
     <!-- Patient Table -->
-    <p-table [value]="patients" dataKey="id" editMode="row" #dt [tableStyle]="{ 'min-width': '100%' }" class="text-sm">
+    <p-table [value]="patients" dataKey="id" editMode="row" #dt [tableStyle]="{ 'min-width': '100%' }"
+      styleClass="reception-patient-table" class="text-sm">
       <ng-template pTemplate="header">
         <tr>
           <th>Token</th>
@@ -305,6 +307,15 @@
             class="p-button-secondary"></button>
         </div>
       </form>
+    </div>
+
+    <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span class="font-semibold uppercase tracking-wide text-slate-500">Confirmed Fees</span>
+        <span><span class="font-semibold text-sky-700">QR:</span> {{ qrSummary.total | currency:'INR':'symbol':'1.0-0' }} / {{ qrSummary.count }}</span>
+        <span><span class="font-semibold text-orange-700">Cash:</span> {{ cashSummary.total | currency:'INR':'symbol':'1.0-0' }} / {{ cashSummary.count }}</span>
+        <span><span class="font-semibold text-emerald-700">QR+Cash:</span> {{ (qrSummary.total + cashSummary.total) | currency:'INR':'symbol':'1.0-0' }} / {{ qrSummary.count + cashSummary.count }}</span>
+      </div>
     </div>
 
     <!-- ADD NEW PATIENT SECTION -->

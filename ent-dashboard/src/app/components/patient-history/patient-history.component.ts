@@ -26,6 +26,7 @@ export class PatientHistoryComponent implements OnInit {
   isSqlImporting = false;
   isSqlTableExporting = false;
   isSqlTableImporting = false;
+  isBackupPanelOpen = false;
   errorMessage = '';
   exportMessage = '';
   exportError = '';
@@ -41,6 +42,7 @@ export class PatientHistoryComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.currentUserValue;
+    this.showTodayHistory(false);
     this.loadHistory();
   }
 
@@ -78,6 +80,24 @@ export class PatientHistoryComponent implements OnInit {
     this.fromDate = '';
     this.toDate = '';
     this.loadHistory();
+  }
+
+  showTodayHistory(load = true): void {
+    const todayKey = this.datePipe.transform(new Date(), 'yyyy-MM-dd') || '';
+    this.fromDate = todayKey;
+    this.toDate = todayKey;
+
+    if (load) {
+      this.loadHistory();
+    }
+  }
+
+  toggleBackupPanel(): void {
+    this.isBackupPanelOpen = !this.isBackupPanelOpen;
+  }
+
+  closeBackupPanel(): void {
+    this.isBackupPanelOpen = false;
   }
 
   selectPatient(patient: PatientHistory): void {

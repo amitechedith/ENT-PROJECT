@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 require('dotenv').config();
 const db = require('./config/db.config');
-const { createTables } = require('./models');
+const { createTables, ensureInitialAdminUser } = require('./models');
 
 const app = express();
 
@@ -65,6 +65,7 @@ if (process.env.NODE_ENV !== 'production') {
 const PORT = process.env.PORT || 3000;
 
 createTables()
+    .then(() => ensureInitialAdminUser())
     .then(() => {
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}.`);

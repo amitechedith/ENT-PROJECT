@@ -150,7 +150,7 @@
                   <td class="py-3 px-4 text-slate-500">{{ i + 1 }}</td>
                   <td class="py-3 px-4 font-medium text-slate-800">{{ med.medicineName }}</td>
                   <td class="py-3 px-4">{{ med.dosage }}</td>
-                  <td class="py-3 px-4">{{ med.daysToTake }} Days</td>
+                  <td class="py-3 px-4">{{ getMedicineDaysLabel(med) }}</td>
                 </tr>
               </ng-container>
             </tbody>

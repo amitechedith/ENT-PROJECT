@@ -104,6 +104,7 @@ DB_HOST=localhost
 DB_USER=ent_user
 DB_PASSWORD=YourSecurePassword123!
 DB_NAME=ent_clinic_db
+ADMIN_PASSWORD=ChangeThisAdminLoginPassword123!
 ```
 
 **Save and close (Ctrl+S, then close window)**

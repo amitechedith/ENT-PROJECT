@@ -24,6 +24,10 @@ export class DataService {
     return this.http.get<Patient>(`${this.apiUrl}/patients/${patientId}`);
   }
 
+  updatePatient(patient: Patient): Observable<any> {
+    return this.http.put(`${this.apiUrl}/patients/${patient.id}`, patient);
+  }
+
   getPatientsByDate(date: string): Observable<Patient[]> {
     const params = new HttpParams().set('date', date);
     return this.http.get<Patient[]>(`${this.apiUrl}/patients`, { params });

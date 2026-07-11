@@ -1,0 +1,43 @@
+:host ::ng-deep .reception-patient-table {
+  table-layout: fixed;
+}
+
+:host ::ng-deep .reception-patient-table .p-datatable-tbody > tr > td {
+  height: 3rem;
+  vertical-align: middle;
+}
+
+:host ::ng-deep .reception-patient-table .p-inputtext {
+  width: 100%;
+  min-height: 1.9rem;
+  height: 1.9rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+:host ::ng-deep .reception-patient-table .p-dropdown {
+  width: 100%;
+  min-height: 1.9rem;
+  height: 1.9rem;
+  align-items: center;
+}
+
+:host ::ng-deep .reception-patient-table .p-dropdown .p-dropdown-label {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+:host ::ng-deep .reception-patient-table .p-dropdown .p-dropdown-trigger {
+  width: 1.9rem;
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+}
+
+:host ::ng-deep .reception-patient-table .p-button.p-button-icon-only {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+}
