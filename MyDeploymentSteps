@@ -1,3 +1,28 @@
+nvm-setup.exe
+NVM:
+C:\Program Files\nvm
+
+Node Symlink:
+C:\Program Files\nodejs
+
+nvm version
+nvm list available
+nvm install 20.19.5
+nvm use 20.19.5
+node -v
+npm -v
+
+npm install -g pm2
+pm2 -v
+
+pm2 start server.js --name ent-backend
+-- pm2 start npm -- start
+pm2 list
+
+##
+netsh advfirewall firewall add rule name="ENT Clinic App Port 3000" dir=in action=allow protocol=TCP localport=3000
+##
+
 ent-dashboard
 run: 
 npm i
@@ -7,6 +32,15 @@ ent-backend
 run:
 npm i
 
+##
+copy to pendrive -- without node_modules
+ENT-Clinic-App/
+  ent-backend/
+  ent-dashboard/
+    dist/
+      ent-dashboard/
+
+##
 cd ent-backend
 pm2 start server.js --name ent-backend
 
