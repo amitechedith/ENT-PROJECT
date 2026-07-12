@@ -11,6 +11,7 @@
                 <tr>
                     <th>Full Name</th>
                     <th>Username</th>
+                    <th *ngIf="canManageAdmins">Password</th>
                     <th>Mobile</th>
                     <th>Role</th>
                     <th>Actions</th>
@@ -20,6 +21,19 @@
                 <tr>
                     <td>{{ user.fullName }}</td>
                     <td>{{ user.username }}</td>
+                    <td *ngIf="canManageAdmins">
+                        <div class="flex items-center gap-2">
+                            <span class="min-w-[90px] font-mono text-sm text-gray-700">{{ getPasswordDisplay(user) }}</span>
+                            <button
+                                pButton
+                                type="button"
+                                [icon]="isPasswordVisible(user) ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                                class="p-button-rounded p-button-text p-button-sm"
+                                [disabled]="!user.password"
+                                (click)="togglePasswordVisibility(user)"
+                                [attr.aria-label]="isPasswordVisible(user) ? 'Hide password' : 'Show password'"></button>
+                        </div>
+                    </td>
                     <td>{{ user.mobile || '-' }}</td>
                     <td>
                         <span [ngClass]="{

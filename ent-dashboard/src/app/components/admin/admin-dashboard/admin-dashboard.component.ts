@@ -25,6 +25,7 @@ export class AdminDashboardComponent implements OnInit {
     allUsers: User[] = [];
     displayDialog: boolean = false;
     editingUser: { [key: string]: boolean } = {}; // Track which user is being edited
+    visibleUserPasswords: { [key: string]: boolean } = {};
     userForm!: FormGroup;
     currentUser: User | null = null;
     roles = [
@@ -76,6 +77,26 @@ export class AdminDashboardComponent implements OnInit {
 
     displayRoleLabel(role: string): string {
         return role === 'billing' ? 'Prescription' : role;
+    }
+
+    isPasswordVisible(user: User): boolean {
+        return !!user.id && !!this.visibleUserPasswords[user.id];
+    }
+
+    togglePasswordVisibility(user: User): void {
+        if (!this.canManageAdmins || !user.id) {
+            return;
+        }
+
+        this.visibleUserPasswords[user.id] = !this.visibleUserPasswords[user.id];
+    }
+
+    getPasswordDisplay(user: User): string {
+        if (!user.password) {
+            return '-';
+        }
+
+        return this.isPasswordVisible(user) ? user.password : '********';
     }
 
     passwordMatchValidator(form: FormGroup) {
