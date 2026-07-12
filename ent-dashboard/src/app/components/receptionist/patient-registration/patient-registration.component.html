@@ -112,10 +112,11 @@
           <td>
             <p-cellEditor>
               <ng-template pTemplate="input">
-                <input pInputText [(ngModel)]="p.gender" class="w-full" />
+                <p-dropdown [options]="genderOptions" [(ngModel)]="p.gender" optionLabel="label"
+                  optionValue="value" appendTo="body" class="w-full"></p-dropdown>
               </ng-template>
               <ng-template pTemplate="output">
-                {{ p.gender }}
+                {{ p.gender || '-' }}
               </ng-template>
             </p-cellEditor>
           </td>

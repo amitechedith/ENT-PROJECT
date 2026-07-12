@@ -7,6 +7,9 @@ import { PatientService } from '../../services/patient.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
 
+type GovernmentExportMode = 'daily' | 'monthly' | 'custom';
+type GovernmentPaymentMode = 'QR' | 'Cash';
+
 @Component({
   selector: 'app-patient-history',
   standalone: true,
@@ -27,9 +30,19 @@ export class PatientHistoryComponent implements OnInit {
   isSqlTableExporting = false;
   isSqlTableImporting = false;
   isBackupPanelOpen = false;
+  isGovernmentExportOpen = false;
+  isGovernmentExporting = false;
   errorMessage = '';
   exportMessage = '';
   exportError = '';
+  governmentExportMessage = '';
+  governmentExportError = '';
+  governmentExportMode: GovernmentExportMode = 'daily';
+  governmentExportDate = '';
+  governmentExportMonth = '';
+  governmentExportFrom = '';
+  governmentExportTo = '';
+  governmentExportPaymentModes: GovernmentPaymentMode[] = ['QR', 'Cash'];
   sqlMessage = '';
   sqlError = '';
   currentUser: User | null = null;
@@ -42,6 +55,7 @@ export class PatientHistoryComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.currentUserValue;
+    this.initializeGovernmentExportDates();
     this.showTodayHistory(false);
     this.loadHistory();
   }
@@ -94,10 +108,47 @@ export class PatientHistoryComponent implements OnInit {
 
   toggleBackupPanel(): void {
     this.isBackupPanelOpen = !this.isBackupPanelOpen;
+    if (this.isBackupPanelOpen) {
+      this.isGovernmentExportOpen = false;
+    }
   }
 
   closeBackupPanel(): void {
     this.isBackupPanelOpen = false;
+  }
+
+  toggleGovernmentExportPanel(): void {
+    this.isGovernmentExportOpen = !this.isGovernmentExportOpen;
+    if (this.isGovernmentExportOpen) {
+      this.isBackupPanelOpen = false;
+    }
+  }
+
+  closeGovernmentExportPanel(): void {
+    this.isGovernmentExportOpen = false;
+  }
+
+  setGovernmentExportMode(mode: GovernmentExportMode): void {
+    this.governmentExportMode = mode;
+    this.governmentExportMessage = '';
+    this.governmentExportError = '';
+  }
+
+  isGovernmentPaymentModeSelected(paymentMode: GovernmentPaymentMode): boolean {
+    return this.governmentExportPaymentModes.includes(paymentMode);
+  }
+
+  toggleGovernmentPaymentMode(paymentMode: GovernmentPaymentMode, checked: boolean): void {
+    if (checked && !this.isGovernmentPaymentModeSelected(paymentMode)) {
+      this.governmentExportPaymentModes = [...this.governmentExportPaymentModes, paymentMode];
+    }
+
+    if (!checked) {
+      this.governmentExportPaymentModes = this.governmentExportPaymentModes.filter(mode => mode !== paymentMode);
+    }
+
+    this.governmentExportMessage = '';
+    this.governmentExportError = '';
   }
 
   selectPatient(patient: PatientHistory): void {
@@ -203,6 +254,45 @@ export class PatientHistoryComponent implements OnInit {
         console.error('Failed to export patient history backup', err);
         this.exportError = err.error?.message || 'Unable to export patient history backup.';
         this.isExporting = false;
+      }
+    });
+  }
+
+  exportGovernmentReport(): void {
+    if (!this.canExportBackup || !this.currentUser) {
+      return;
+    }
+
+    const range = this.getGovernmentExportRange();
+    this.governmentExportMessage = '';
+    this.governmentExportError = '';
+
+    if (!range) {
+      this.governmentExportError = 'Select a valid export date range.';
+      return;
+    }
+
+    if (this.governmentExportPaymentModes.length === 0) {
+      this.governmentExportError = 'Select at least one payment mode.';
+      return;
+    }
+
+    this.isGovernmentExporting = true;
+    const filters = {
+      ...range,
+      paymentModes: this.governmentExportPaymentModes
+    };
+
+    this.patientService.exportGovernmentReport(this.currentUser.role, filters).subscribe({
+      next: (blob) => {
+        this.saveBlob(blob, `ent-clinic-government-report-${range.fromDate}-to-${range.toDate}.xlsx`);
+        this.governmentExportMessage = 'Government report downloaded.';
+        this.isGovernmentExporting = false;
+      },
+      error: (err) => {
+        console.error('Failed to export government report', err);
+        this.governmentExportError = err.error?.message || 'Unable to export government report.';
+        this.isGovernmentExporting = false;
       }
     });
   }
@@ -365,6 +455,61 @@ export class PatientHistoryComponent implements OnInit {
     link.download = fileName;
     link.click();
     window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  private initializeGovernmentExportDates(): void {
+    const todayKey = this.getTodayKey();
+    this.governmentExportDate = todayKey;
+    this.governmentExportMonth = this.getCurrentMonthKey();
+    this.governmentExportFrom = todayKey;
+    this.governmentExportTo = todayKey;
+  }
+
+  private getGovernmentExportRange(): { fromDate: string; toDate: string } | null {
+    if (this.governmentExportMode === 'daily') {
+      return this.isValidDateKey(this.governmentExportDate)
+        ? { fromDate: this.governmentExportDate, toDate: this.governmentExportDate }
+        : null;
+    }
+
+    if (this.governmentExportMode === 'monthly') {
+      const monthMatch = this.governmentExportMonth.match(/^(\d{4})-(\d{2})$/);
+      if (!monthMatch) {
+        return null;
+      }
+
+      const year = Number(monthMatch[1]);
+      const month = Number(monthMatch[2]);
+      if (month < 1 || month > 12) {
+        return null;
+      }
+
+      const fromDate = `${this.governmentExportMonth}-01`;
+      const toDate = this.datePipe.transform(new Date(year, month, 0), 'yyyy-MM-dd') || '';
+      return this.isValidDateKey(toDate) ? { fromDate, toDate } : null;
+    }
+
+    if (!this.isValidDateKey(this.governmentExportFrom) || !this.isValidDateKey(this.governmentExportTo)) {
+      return null;
+    }
+
+    if (this.governmentExportFrom > this.governmentExportTo) {
+      return null;
+    }
+
+    return { fromDate: this.governmentExportFrom, toDate: this.governmentExportTo };
+  }
+
+  private getTodayKey(): string {
+    return this.datePipe.transform(new Date(), 'yyyy-MM-dd') || '';
+  }
+
+  private getCurrentMonthKey(): string {
+    return this.datePipe.transform(new Date(), 'yyyy-MM') || '';
+  }
+
+  private isValidDateKey(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
   }
 
   private buildExportMessage(affectedDates: string[], refreshedSheets: string[]): string {

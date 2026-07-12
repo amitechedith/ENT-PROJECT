@@ -54,6 +54,33 @@ const PAYMENT_SUMMARY_COLUMNS = [
     { header: 'Confirmed Fee Total', key: 'consultationFeeTotal', width: 22 }
 ];
 
+const GOVERNMENT_REPORT_PATIENT_COLUMNS = [
+    { header: 'Patient ID', key: 'patientId', width: 12 },
+    { header: 'Token', key: 'tokenNumber', width: 10 },
+    { header: 'Patient Name', key: 'patientName', width: 24 },
+    { header: 'Mobile', key: 'mobile', width: 16 },
+    { header: 'Age', key: 'age', width: 8 },
+    { header: 'Gender', key: 'gender', width: 10 },
+    { header: 'Visit Date', key: 'visitDate', width: 14 },
+    { header: 'Visit Reason', key: 'visitReason', width: 28 },
+    { header: 'Status', key: 'status', width: 18 },
+    { header: 'Payment Mode', key: 'paymentMode', width: 14 },
+    { header: 'Consultation Fee', key: 'consultationFee', width: 16 },
+    { header: 'Diagnoses', key: 'diagnoses', width: 34 },
+    { header: 'Medical Background', key: 'medicalBackground', width: 34 }
+];
+
+const GOVERNMENT_REPORT_SUMMARY_COLUMNS = [
+    { header: 'Metric', key: 'metric', width: 32 },
+    { header: 'Value', key: 'value', width: 28 }
+];
+
+const GOVERNMENT_REPORT_PAYMENT_COLUMNS = [
+    { header: 'Payment Mode', key: 'paymentMode', width: 18 },
+    { header: 'Paid Patient Count', key: 'patientCount', width: 18 },
+    { header: 'Total Revenue', key: 'totalRevenue', width: 18 }
+];
+
 const MASTER_COLUMNS = {
     users: [
         { header: 'ID', key: 'id', width: 18 },
@@ -115,6 +142,24 @@ const formatDateTime = (value) => {
     }
 
     return value instanceof Date ? value.toISOString().replace('T', ' ').slice(0, 19) : String(value);
+};
+
+const normalizeDateValue = (value) => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().split('T')[0];
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+};
+
+const normalizePaymentModes = (value) => {
+    const allowedModes = ['QR', 'Cash'];
+    if (!Array.isArray(value)) {
+        return allowedModes;
+    }
+
+    return allowedModes.filter(mode => value.includes(mode));
 };
 
 const isSafeIdentifier = (value) => /^[A-Za-z0-9_]+$/.test(value);
@@ -557,6 +602,89 @@ const getPaymentSummaryRows = async () => {
     return summaryRows;
 };
 
+const getGovernmentReportPatientRows = async (fromDate, toDate, paymentModes) => {
+    const paymentModePlaceholders = paymentModes.map(() => '?').join(', ');
+    const [rows] = await db.query(
+        `
+        SELECT
+            p.id AS patientId,
+            p.tokenNumber,
+            p.name AS patientName,
+            p.mobile,
+            p.age,
+            p.gender,
+            DATE_FORMAT(p.latestVisitDate, '%Y-%m-%d') AS visitDate,
+            p.visitReason,
+            p.status,
+            CASE WHEN p.paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END AS paymentMode,
+            p.consultationFee,
+            COALESCE(d.diagnoses, '') AS diagnoses,
+            p.medicalBackground
+        FROM patients p
+        LEFT JOIN (
+            SELECT patientId, GROUP_CONCAT(diagnosisName ORDER BY diagnosisName SEPARATOR ', ') AS diagnoses
+            FROM patient_diagnoses
+            GROUP BY patientId
+        ) d ON d.patientId = p.id
+        WHERE DATE(p.latestVisitDate) BETWEEN ? AND ?
+          AND (CASE WHEN p.paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END) IN (${paymentModePlaceholders})
+        ORDER BY p.latestVisitDate ASC, COALESCE(p.tokenNumber, 999999), p.name
+        `,
+        [fromDate, toDate, ...paymentModes]
+    );
+
+    return rows.map(row => ({
+        ...row,
+        consultationFee: Number(row.consultationFee || 0)
+    }));
+};
+
+const buildGovernmentReportSummaryRows = (patientRows, fromDate, toDate, paymentModes) => {
+    const paidRows = patientRows.filter(row => String(row.status || '').toLowerCase() === 'payment done');
+    const waitingCount = patientRows.filter(row => String(row.status || '').toLowerCase() === 'waiting').length;
+    const inConsultationCount = patientRows.filter(row => String(row.status || '').toLowerCase() === 'in consultation').length;
+    const paymentDoneCount = paidRows.length;
+    const totalRevenue = paidRows.reduce((sum, row) => sum + Number(row.consultationFee || 0), 0);
+
+    return [
+        { metric: 'Report Period', value: fromDate === toDate ? fromDate : `${fromDate} to ${toDate}` },
+        { metric: 'From Date', value: fromDate },
+        { metric: 'To Date', value: toDate },
+        { metric: 'Included Payment Modes', value: paymentModes.join(', ') },
+        { metric: 'Generated At', value: formatDateTime(new Date()) },
+        { metric: 'Total Patients', value: patientRows.length },
+        { metric: 'Waiting Patients', value: waitingCount },
+        { metric: 'In Consultation Patients', value: inConsultationCount },
+        { metric: 'Payment Done Patients', value: paymentDoneCount },
+        { metric: 'Total Revenue', value: totalRevenue }
+    ];
+};
+
+const buildGovernmentReportPaymentRows = (patientRows, paymentModes) => {
+    const paidRows = patientRows.filter(row => String(row.status || '').toLowerCase() === 'payment done');
+    const buildModeRow = (paymentMode) => {
+        const modeRows = paidRows.filter(row => row.paymentMode === paymentMode);
+        return {
+            paymentMode,
+            patientCount: modeRows.length,
+            totalRevenue: modeRows.reduce((sum, row) => sum + Number(row.consultationFee || 0), 0)
+        };
+    };
+    const modeRows = paymentModes.map(buildModeRow);
+    if (modeRows.length < 2) {
+        return modeRows;
+    }
+
+    return [
+        ...modeRows,
+        {
+            paymentMode: paymentModes.join(' + '),
+            patientCount: modeRows.reduce((sum, row) => sum + row.patientCount, 0),
+            totalRevenue: modeRows.reduce((sum, row) => sum + row.totalRevenue, 0)
+        }
+    ];
+};
+
 const refreshMasterSheets = async (workbook) => {
     replaceWorksheet(workbook, 'Users', MASTER_COLUMNS.users, await getUsers());
     replaceWorksheet(workbook, 'Medicines Master', MASTER_COLUMNS.simpleMaster, await getSimpleMasterRows('medicines'));
@@ -600,6 +728,55 @@ const insertExportRun = async (status, filePath, affectedDates, refreshedSheets,
             completedAt
         ]
     );
+};
+
+exports.exportGovernmentReport = async (req, res) => {
+    if (!assertCanExport(req, res)) {
+        return;
+    }
+
+    const fromDate = normalizeDateValue(req.body?.fromDate);
+    const toDate = normalizeDateValue(req.body?.toDate);
+    const paymentModes = normalizePaymentModes(req.body?.paymentModes);
+
+    if (!fromDate || !toDate || fromDate > toDate) {
+        return res.status(400).json({ message: 'Valid fromDate and toDate are required' });
+    }
+
+    if (paymentModes.length === 0) {
+        return res.status(400).json({ message: 'Select at least one payment mode' });
+    }
+
+    try {
+        const patientRows = await getGovernmentReportPatientRows(fromDate, toDate, paymentModes);
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'ENT Clinic Management';
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        replaceWorksheet(
+            workbook,
+            'Summary',
+            GOVERNMENT_REPORT_SUMMARY_COLUMNS,
+            buildGovernmentReportSummaryRows(patientRows, fromDate, toDate, paymentModes)
+        );
+        replaceWorksheet(
+            workbook,
+            'Payment Summary',
+            GOVERNMENT_REPORT_PAYMENT_COLUMNS,
+            buildGovernmentReportPaymentRows(patientRows, paymentModes)
+        );
+        replaceWorksheet(workbook, 'Patient Details', GOVERNMENT_REPORT_PATIENT_COLUMNS, patientRows);
+
+        const fileName = `ent-clinic-government-report-${fromDate}-to-${toDate}.xlsx`;
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Government report export failed:', error);
+        res.status(500).json({ message: 'Government report export failed', error: error.message });
+    }
 };
 
 exports.exportPatientHistoryBackup = async (req, res) => {

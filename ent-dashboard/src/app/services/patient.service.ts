@@ -63,6 +63,14 @@ export class PatientService {
     });
   }
 
+  exportGovernmentReport(role: string, filters: { fromDate: string; toDate: string; paymentModes: string[] }): Observable<Blob> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post(`${environment.apiUrl}/export/government-report`, filters, {
+      headers,
+      responseType: 'blob'
+    });
+  }
+
   exportSqlBackup(role: string): Observable<{
     message: string;
     fileName: string;

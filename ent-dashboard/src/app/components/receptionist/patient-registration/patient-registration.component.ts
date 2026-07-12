@@ -71,6 +71,12 @@ export class PatientRegistrationComponent implements OnInit {
     { label: 'QR', value: 'QR' }
   ];
 
+  genderOptions = [
+    { label: 'Male', value: 'Male' },
+    { label: 'Female', value: 'Female' },
+    { label: 'Other', value: 'Other' }
+  ];
+
   constructor(
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
