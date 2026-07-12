@@ -42,20 +42,32 @@ export class BillingPageComponent implements OnInit {
   }
 
   loadDoctorProfile() {
+    const currentUser = this.authService.currentUserValue;
     this.authService.getUsers().subscribe({
       next: (users) => {
-        const doctors = users.filter(user => user.role === 'doctor');
-        this.doctorProfile =
-          doctors.find(user =>
-            !!user.doctorTitle &&
-            !!user.doctorRegistrationNumber &&
-            !!user.doctorClinicAddress &&
-            !!user.doctorClinicPhone &&
-            !!user.doctorTimings
-          ) || doctors[0] || null;
+        this.doctorProfile = this.resolveCurrentDoctor(users, currentUser) || null;
       },
       error: (err) => console.error('Failed to load doctor profile', err)
     });
+  }
+
+  private resolveCurrentDoctor(users: User[], currentUser: User | null): User | undefined {
+    if (currentUser?.role === 'doctor') {
+      return users.find(user => user.id === currentUser.id && user.role === 'doctor');
+    }
+
+    if (currentUser?.assignedDoctorId) {
+      return users.find(user => user.id === currentUser.assignedDoctorId && user.role === 'doctor');
+    }
+
+    const doctors = users.filter(user => user.role === 'doctor');
+    return doctors.find(user =>
+      !!user.doctorTitle &&
+      !!user.doctorRegistrationNumber &&
+      !!user.doctorClinicAddress &&
+      !!user.doctorClinicPhone &&
+      !!user.doctorTimings
+    ) || doctors[0];
   }
 
   bootstrapPatients() {
@@ -295,11 +307,7 @@ export class BillingPageComponent implements OnInit {
   }
 
   get doctorClinicPhone(): string {
-    return this.doctorProfile?.doctorClinicPhone || this.doctorProfile?.mobile || '';
-  }
-
-  get doctorEmergencyPhone(): string {
-    return this.doctorProfile?.mobile || this.doctorProfile?.doctorClinicPhone || '';
+    return this.doctorProfile?.doctorClinicPhone || '';
   }
 
   get doctorEmail(): string {

@@ -43,6 +43,46 @@ const deleteMasterItemByName = async (tableName, name) => {
     return { name: normalizedName };
 };
 
+const assertMasterItemNotInUse = async (type, name) => {
+    const normalizedName = normalizeMasterName(name);
+    let count = 0;
+
+    if (type === 'medicine') {
+        const [rows] = await db.query(
+            `
+            SELECT COUNT(*) AS count
+            FROM prescription_medicines pm
+            LEFT JOIN medicines m ON m.id = pm.medicineId
+            WHERE pm.medicineName = ? OR m.name = ?
+            `,
+            [normalizedName, normalizedName]
+        );
+        count = Number(rows[0]?.count || 0);
+    }
+
+    if (type === 'diagnosis') {
+        const [rows] = await db.query(
+            'SELECT COUNT(*) AS count FROM patient_diagnoses WHERE diagnosisName = ?',
+            [normalizedName]
+        );
+        count = Number(rows[0]?.count || 0);
+    }
+
+    if (type === 'dosage') {
+        const [rows] = await db.query(
+            'SELECT COUNT(*) AS count FROM prescription_medicines WHERE dosage = ?',
+            [normalizedName]
+        );
+        count = Number(rows[0]?.count || 0);
+    }
+
+    if (count > 0) {
+        const error = new Error(`This ${type} is already used and cannot be deleted`);
+        error.statusCode = 409;
+        throw error;
+    }
+};
+
 exports.getMedicines = async (req, res) => {
     try {
         const [meds] = await db.query('SELECT * FROM medicines ORDER BY name');
@@ -64,6 +104,7 @@ exports.addMedicine = async (req, res) => {
 
 exports.deleteMedicine = async (req, res) => {
     try {
+        await assertMasterItemNotInUse('medicine', req.query.name);
         const medicine = await deleteMasterItemByName('medicines', req.query.name);
         res.json({ message: 'Medicine deleted', ...medicine });
     } catch (error) {
@@ -96,6 +137,7 @@ exports.addDiagnosis = async (req, res) => {
 
 exports.deleteDiagnosis = async (req, res) => {
     try {
+        await assertMasterItemNotInUse('diagnosis', req.query.name);
         const diagnosis = await deleteMasterItemByName('diagnoses', req.query.name);
         res.json({ message: 'Diagnosis deleted', ...diagnosis });
     } catch (error) {
@@ -125,6 +167,7 @@ exports.addDosage = async (req, res) => {
 
 exports.deleteDosage = async (req, res) => {
     try {
+        await assertMasterItemNotInUse('dosage', req.query.name);
         const dosage = await deleteMasterItemByName('dosages', req.query.name);
         res.json({ message: 'Dosage deleted', ...dosage });
     } catch (error) {

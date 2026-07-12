@@ -17,31 +17,31 @@ export const routes: Routes = [
     path: 'reception',
     component: PatientRegistrationComponent,
     canActivate: [AuthGuard],
-    data: { roles: ['receptionist', 'admin', 'doctor'] }
+    data: { roles: ['receptionist', 'billing', 'admin', 'doctor'], tabKey: 'reception' }
   },
   {
     path: 'doctor/dashboard',
     component: DoctorDashboardComponent,
     canActivate: [AuthGuard],
-    data: { roles: ['doctor', 'admin'] }
+    data: { roles: ['doctor', 'admin', 'receptionist', 'billing'], tabKey: 'doctor' }
   },
   {
     path: 'doctor/consult/:id',
     component: ConsultationComponent,
     canActivate: [AuthGuard],
-    data: { roles: ['doctor', 'admin'] }
+    data: { roles: ['doctor', 'admin', 'receptionist', 'billing'], tabKey: 'doctor' }
   },
   {
     path: 'billing',
     component: BillingPageComponent,
     canActivate: [AuthGuard],
-    data: { roles: ['billing', 'admin', 'doctor', 'receptionist'] }
+    data: { roles: ['billing', 'admin', 'doctor', 'receptionist'], tabKey: 'billing' }
   },
   {
     path: 'patient-history',
     component: PatientHistoryComponent,
     canActivate: [AuthGuard],
-    data: { roles: ['billing', 'admin', 'doctor', 'receptionist'] }
+    data: { roles: ['billing', 'admin', 'doctor', 'receptionist'], tabKey: 'history' }
   },
   {
     path: 'admin',

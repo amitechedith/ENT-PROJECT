@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common'; // Important for async pipe
 import { AuthService } from './services/auth.service';
 import { User } from './models/user.model';
 import { Observable } from 'rxjs';
+import { AccessTab } from './models/access-control.model';
 
 @Component({
   selector: 'app-root',
@@ -24,6 +25,12 @@ export class AppComponent {
   ) {
     this.currentUser$ = this.authService.currentUser$;
     this.syncPatientContextFromUrl(this.router.url);
+
+    this.currentUser$.subscribe(user => {
+      if (user) {
+        this.authService.loadAccessControls().subscribe({ error: () => undefined });
+      }
+    });
 
     this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
@@ -57,6 +64,10 @@ export class AppComponent {
     }
 
     return role ? role.toUpperCase() : '';
+  }
+
+  canAccessTab(user: User, tabKey: AccessTab): boolean {
+    return this.authService.hasTabAccess(user.role, tabKey);
   }
 
   private syncPatientContextFromUrl(url: string): void {

@@ -63,8 +63,10 @@ export class PatientService {
     });
   }
 
-  exportGovernmentReport(role: string, filters: { fromDate: string; toDate: string; paymentModes: string[] }): Observable<Blob> {
-    const headers = new HttpHeaders().set('x-user-role', role);
+  exportGovernmentReport(role: string, userId: string, filters: { fromDate: string; toDate: string; paymentModes: string[] }): Observable<Blob> {
+    const headers = new HttpHeaders()
+      .set('x-user-role', role)
+      .set('x-user-id', userId);
     return this.http.post(`${environment.apiUrl}/export/government-report`, filters, {
       headers,
       responseType: 'blob'
@@ -160,6 +162,10 @@ export class PatientService {
     return this.http.post(this.apiUrl, patient);
   }
 
+  registerPatientVisit(patient: Patient): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${patient.id}/visit`, patient);
+  }
+
   updateStatus(id: number, status: string): Observable<any> {
     return this.http.patch(`${this.apiUrl}/${id}/status`, { status });
   }
@@ -168,16 +174,22 @@ export class PatientService {
     return this.http.put(`${this.apiUrl}/${patient.id}`, patient);
   }
 
-  deletePatient(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/${id}`);
+  deletePatient(id: number, date?: string): Observable<any> {
+    const options = date ? { params: new HttpParams().set('date', date) } : {};
+    return this.http.delete(`${this.apiUrl}/${id}`, options);
   }
 
-  getNextToken(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/next-token`);
+  getNextToken(date?: string): Observable<any> {
+    const options = date ? { params: new HttpParams().set('date', date) } : {};
+    return this.http.get(`${this.apiUrl}/next-token`, options);
   }
 
   getPatientById(id: number): Observable<Patient> {
     return this.http.get<Patient>(`${this.apiUrl}/${id}`);
+  }
+
+  getPatientByCode(patientCode: string): Observable<Patient> {
+    return this.http.get<Patient>(`${this.apiUrl}/by-code/${encodeURIComponent(patientCode)}`);
   }
 
   addPrescription(prescription: any): Observable<any> {

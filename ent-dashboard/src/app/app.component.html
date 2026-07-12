@@ -12,24 +12,24 @@
 
     <nav class="flex-1 min-w-0 overflow-x-auto app-shell-scroll">
       <div class="flex h-10 items-center gap-1.5 whitespace-nowrap text-sm font-medium">
-        <a *ngIf="['receptionist', 'admin', 'doctor'].includes(user.role)" routerLink="/reception"
+        <a *ngIf="canAccessTab(user, 'reception')" routerLink="/reception"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           Reception
         </a>
 
-        <a *ngIf="['doctor', 'admin'].includes(user.role)" routerLink="/doctor/dashboard"
+        <a *ngIf="canAccessTab(user, 'doctor')" routerLink="/doctor/dashboard"
           [queryParams]="patientLinkQueryParams"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           Doctor
         </a>
 
-        <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/billing"
+        <a *ngIf="canAccessTab(user, 'billing')" routerLink="/billing"
           [queryParams]="patientLinkQueryParams"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           Prescription
         </a>
 
-        <a *ngIf="['billing', 'admin', 'doctor', 'receptionist'].includes(user.role)" routerLink="/patient-history"
+        <a *ngIf="canAccessTab(user, 'history')" routerLink="/patient-history"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           History
         </a>

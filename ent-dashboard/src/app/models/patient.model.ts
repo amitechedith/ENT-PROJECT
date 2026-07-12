@@ -2,6 +2,7 @@ import { Prescription } from './prescription.model';
 
 export interface Patient {
   id?: number;
+  patientCode?: string;
   name: string;
   gender?: string;
   mobile?: string;

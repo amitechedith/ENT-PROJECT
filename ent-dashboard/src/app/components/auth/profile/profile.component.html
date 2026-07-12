@@ -1,4 +1,4 @@
-<div class="max-w-xl mx-auto p-6">
+<div class="max-w-3xl mx-auto p-6">
     <div class="flex items-center gap-3 mb-6">
         <div
             class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">
@@ -33,11 +33,75 @@
 
             <div class="flex flex-col gap-1">
                 <label class="font-semibold text-sm text-gray-700">Mobile Number</label>
-                <input pInputText formControlName="mobile" placeholder="10-digit number" maxlength="10" />
+                <input pInputText formControlName="mobile" placeholder="10-digit number" maxlength="10"
+                    inputmode="numeric" />
                 <small *ngIf="profileForm.get('mobile')?.touched && profileForm.get('mobile')?.invalid"
                     class="text-red-500">
                     Valid 10-digit mobile required
                 </small>
+            </div>
+
+            <div *ngIf="isDoctorProfile" class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Qualification / Title <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorTitle" placeholder="e.g. MBBS, MS - ENT" />
+                    <small *ngIf="isInvalid(profileForm, 'doctorTitle')" class="text-red-500">
+                        Qualification is required
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Registration No. <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorRegistrationNumber" placeholder="e.g. 12345/MC" />
+                    <small *ngIf="isInvalid(profileForm, 'doctorRegistrationNumber')" class="text-red-500">
+                        Registration number is required
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1 col-span-2">
+                    <label class="font-semibold text-sm text-gray-700">Clinic Address <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorClinicAddress" placeholder="e.g. 123, Health Avenue, Medical City" />
+                    <small *ngIf="isInvalid(profileForm, 'doctorClinicAddress')" class="text-red-500">
+                        Clinic address is required
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Clinic Phone <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorClinicPhone" placeholder="e.g. +91 98765 43210" />
+                    <small *ngIf="isInvalid(profileForm, 'doctorClinicPhone')" class="text-red-500">
+                        Clinic phone is required
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Email <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorEmail" placeholder="e.g. doctor@email.com" />
+                    <small *ngIf="profileForm.get('doctorEmail')?.touched && profileForm.get('doctorEmail')?.errors?.['required']"
+                        class="text-red-500">
+                        Email is required
+                    </small>
+                    <small *ngIf="profileForm.get('doctorEmail')?.touched && profileForm.get('doctorEmail')?.errors?.['email']"
+                        class="text-red-500">
+                        Enter a valid email address
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Timings <span class="text-red-500">*</span></label>
+                    <input pInputText formControlName="doctorTimings" placeholder="e.g. 10AM - 2PM, 5PM - 9PM" />
+                    <small *ngIf="isInvalid(profileForm, 'doctorTimings')" class="text-red-500">
+                        Timings are required
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="font-semibold text-sm text-gray-700">Default Fee <span class="text-red-500">*</span></label>
+                    <input pInputText type="number" formControlName="defaultConsultationFee" placeholder="e.g. 500" />
+                    <small *ngIf="isInvalid(profileForm, 'defaultConsultationFee')" class="text-red-500">
+                        Default fee is required
+                    </small>
+                </div>
             </div>
 
             <div class="flex justify-end pt-4 border-t border-gray-100 mt-2">

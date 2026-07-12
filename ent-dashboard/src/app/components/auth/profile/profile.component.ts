@@ -37,8 +37,17 @@ export class ProfileComponent implements OnInit {
             username: [{ value: this.currentUser?.username, disabled: true }],
             role: [{ value: this.currentUser?.role, disabled: true }],
             fullName: [this.currentUser?.fullName, Validators.required],
-            mobile: [this.currentUser?.mobile || '', [Validators.required, Validators.pattern('^[0-9]{10}$')]]
+            mobile: [this.currentUser?.mobile || '', [Validators.required, Validators.pattern('^[0-9]{10}$')]],
+            doctorTitle: [this.currentUser?.doctorTitle || ''],
+            doctorRegistrationNumber: [this.currentUser?.doctorRegistrationNumber || ''],
+            doctorClinicAddress: [this.currentUser?.doctorClinicAddress || ''],
+            doctorClinicPhone: [this.currentUser?.doctorClinicPhone || ''],
+            doctorEmail: [this.currentUser?.doctorEmail || ''],
+            doctorTimings: [this.currentUser?.doctorTimings || ''],
+            defaultConsultationFee: [this.getFeeInputValue(this.currentUser?.defaultConsultationFee)]
         });
+
+        this.updateDoctorFieldValidators();
     }
 
     initPasswordForm() {
@@ -51,6 +60,48 @@ export class ProfileComponent implements OnInit {
 
     get canUpdatePassword(): boolean {
         return !!this.currentUser && this.currentUser.role !== 'admin';
+    }
+
+    get isDoctorProfile(): boolean {
+        return this.currentUser?.role === 'doctor';
+    }
+
+    getFeeInputValue(value: User['defaultConsultationFee']): number {
+        const fee = Number(value);
+        return Number.isFinite(fee) && fee > 0 ? fee : 500;
+    }
+
+    private updateDoctorFieldValidators(): void {
+        const doctorFields = [
+            'doctorTitle',
+            'doctorRegistrationNumber',
+            'doctorClinicAddress',
+            'doctorClinicPhone',
+            'doctorEmail',
+            'doctorTimings',
+            'defaultConsultationFee'
+        ];
+
+        doctorFields.forEach(fieldName => {
+            const control = this.profileForm.get(fieldName);
+            if (!control) {
+                return;
+            }
+
+            if (this.isDoctorProfile) {
+                if (fieldName === 'doctorEmail') {
+                    control.setValidators([Validators.required, Validators.email]);
+                } else if (fieldName === 'defaultConsultationFee') {
+                    control.setValidators([Validators.required, Validators.min(1)]);
+                } else {
+                    control.setValidators([Validators.required]);
+                }
+            } else {
+                control.clearValidators();
+            }
+
+            control.updateValueAndValidity({ emitEvent: false });
+        });
     }
 
     passwordMatchValidator(form: AbstractControl): ValidationErrors | null {
@@ -88,13 +139,21 @@ export class ProfileComponent implements OnInit {
             const updatedUser: User = {
                 ...this.currentUser,
                 fullName: formVal.fullName,
-                mobile: formVal.mobile
+                mobile: formVal.mobile,
+                doctorTitle: this.isDoctorProfile ? formVal.doctorTitle : this.currentUser.doctorTitle,
+                doctorRegistrationNumber: this.isDoctorProfile ? formVal.doctorRegistrationNumber : this.currentUser.doctorRegistrationNumber,
+                doctorClinicAddress: this.isDoctorProfile ? formVal.doctorClinicAddress : this.currentUser.doctorClinicAddress,
+                doctorClinicPhone: this.isDoctorProfile ? formVal.doctorClinicPhone : this.currentUser.doctorClinicPhone,
+                doctorEmail: this.isDoctorProfile ? formVal.doctorEmail : this.currentUser.doctorEmail,
+                doctorTimings: this.isDoctorProfile ? formVal.doctorTimings : this.currentUser.doctorTimings,
+                defaultConsultationFee: this.isDoctorProfile ? Number(formVal.defaultConsultationFee || 0) : this.currentUser.defaultConsultationFee
             };
 
             this.loading = true;
             this.authService.updateUser(updatedUser).subscribe({
                 next: () => {
                     this.loading = false;
+                    this.currentUser = updatedUser;
                     alert('Profile updated successfully!');
                 },
                 error: (err) => {

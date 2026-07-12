@@ -22,12 +22,96 @@ const ensureUpdatedAt = async (connection, tableName) => {
     await ensureColumn(connection, tableName, 'updatedAt', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 };
 
+const ensureIndex = async (connection, tableName, indexName, definition) => {
+    const [rows] = await connection.query(
+        `
+        SELECT INDEX_NAME
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND INDEX_NAME = ?
+        LIMIT 1
+        `,
+        [tableName, indexName]
+    );
+
+    if (rows.length === 0) {
+        await connection.query(`ALTER TABLE \`${tableName}\` ADD ${definition}`);
+        console.log(`Added index ${tableName}.${indexName}`);
+    }
+};
+
+const dropIndexIfExists = async (connection, tableName, indexName) => {
+    const [rows] = await connection.query(
+        `
+        SELECT INDEX_NAME
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND INDEX_NAME = ?
+        LIMIT 1
+        `,
+        [tableName, indexName]
+    );
+
+    if (rows.length > 0) {
+        await connection.query(`ALTER TABLE \`${tableName}\` DROP INDEX \`${indexName}\``);
+        console.log(`Dropped index ${tableName}.${indexName}`);
+    }
+};
+
+const ensureRoleAccessControlsPrimaryKey = async (connection) => {
+    const [rows] = await connection.query(
+        `
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'role_access_controls'
+          AND CONSTRAINT_NAME = 'PRIMARY'
+        ORDER BY ORDINAL_POSITION
+        `
+    );
+    const primaryKeyColumns = rows.map(row => row.COLUMN_NAME);
+    if (primaryKeyColumns.join(',') !== 'doctorId,targetRole,tabKey') {
+        await connection.query('ALTER TABLE role_access_controls DROP PRIMARY KEY');
+        await connection.query('ALTER TABLE role_access_controls ADD PRIMARY KEY (doctorId, targetRole, tabKey)');
+        console.log('Updated role_access_controls primary key.');
+    }
+};
+
 const INITIAL_ADMIN_USER = {
     id: '1',
     username: 'admin',
     fullName: 'System Admin',
     mobile: '9999999999',
     role: 'admin'
+};
+
+const DEFAULT_ROLE_ACCESS_CONTROLS = [
+    { targetRole: 'receptionist', tabKey: 'reception', isAllowed: true },
+    { targetRole: 'receptionist', tabKey: 'doctor', isAllowed: false },
+    { targetRole: 'receptionist', tabKey: 'billing', isAllowed: true },
+    { targetRole: 'receptionist', tabKey: 'history', isAllowed: true },
+    { targetRole: 'billing', tabKey: 'reception', isAllowed: false },
+    { targetRole: 'billing', tabKey: 'doctor', isAllowed: false },
+    { targetRole: 'billing', tabKey: 'billing', isAllowed: true },
+    { targetRole: 'billing', tabKey: 'history', isAllowed: true }
+];
+
+const ensureDefaultAccessControlsForDoctor = async (connection, doctorId) => {
+    if (!doctorId) {
+        return;
+    }
+
+    for (const control of DEFAULT_ROLE_ACCESS_CONTROLS) {
+        await connection.query(
+            `
+            INSERT IGNORE INTO role_access_controls (doctorId, targetRole, tabKey, isAllowed)
+            VALUES (?, ?, ?, ?)
+            `,
+            [doctorId, control.targetRole, control.tabKey, control.isAllowed ? 1 : 0]
+        );
+    }
 };
 
 const ensureInitialAdminUser = async () => {
@@ -89,6 +173,8 @@ const createTables = async () => {
         await ensureColumn(connection, 'users', 'doctorClinicPhone', 'VARCHAR(50) NULL');
         await ensureColumn(connection, 'users', 'doctorEmail', 'VARCHAR(255) NULL');
         await ensureColumn(connection, 'users', 'doctorTimings', 'VARCHAR(255) NULL');
+        await ensureColumn(connection, 'users', 'defaultConsultationFee', 'DECIMAL(10, 2) NULL');
+        await ensureColumn(connection, 'users', 'assignedDoctorId', 'VARCHAR(255) NULL');
         await ensureUpdatedAt(connection, 'users');
         console.log('Users table created/verified.');
 
@@ -110,8 +196,16 @@ const createTables = async () => {
             )
         `);
         await ensureColumn(connection, 'patients', 'tokenNumber', "INT DEFAULT 0 AFTER latestVisitDate");
+        await ensureColumn(connection, 'patients', 'patientCode', "VARCHAR(30) NULL AFTER id");
         await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR' AFTER consultationFee");
         await ensureUpdatedAt(connection, 'patients');
+        await connection.query(`
+            UPDATE patients
+            SET patientCode = CONCAT('PT', DATE_FORMAT(COALESCE(createdAt, NOW()), '%Y%m'), LPAD(id, 4, '0'))
+            WHERE patientCode IS NULL OR patientCode = '' OR patientCode NOT REGEXP '^PT[0-9]{10}$'
+        `);
+        await dropIndexIfExists(connection, 'patients', 'idx_patients_patientCode_unique');
+        await ensureIndex(connection, 'patients', 'idx_patients_patientCode', 'KEY idx_patients_patientCode (patientCode)');
         console.log('Patients table created/verified.');
 
         // 3. Medicines Master Table
@@ -211,6 +305,26 @@ const createTables = async () => {
         `);
         console.log('Export Runs table created/verified.');
 
+        // 10. Role Access Controls Table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS role_access_controls (
+                doctorId VARCHAR(255) NOT NULL DEFAULT 'global',
+                targetRole ENUM('receptionist', 'billing') NOT NULL,
+                tabKey ENUM('reception', 'doctor', 'billing', 'history') NOT NULL,
+                isAllowed TINYINT(1) NOT NULL DEFAULT 0,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (doctorId, targetRole, tabKey)
+            )
+        `);
+        await ensureColumn(connection, 'role_access_controls', 'doctorId', "VARCHAR(255) NOT NULL DEFAULT 'global'");
+        await ensureRoleAccessControlsPrimaryKey(connection);
+
+        const [doctorRows] = await connection.query("SELECT id FROM users WHERE role = 'doctor'");
+        for (const doctor of doctorRows) {
+            await ensureDefaultAccessControlsForDoctor(connection, doctor.id);
+        }
+        console.log('Role access controls table created/verified.');
+
         connection.release();
         return true;
     } catch (error) {
@@ -219,4 +333,4 @@ const createTables = async () => {
     }
 };
 
-module.exports = { createTables, ensureInitialAdminUser };
+module.exports = { createTables, ensureInitialAdminUser, ensureDefaultAccessControlsForDoctor };

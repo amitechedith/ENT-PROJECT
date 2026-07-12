@@ -18,9 +18,9 @@ const seedData = async () => {
         await ensureInitialAdminUser();
 
         const users = [
-            ['2', 'doctor', 'doctor', 'Dr. Amit Panchal', '9876543210', 'doctor', 'MBBS, MS - ENT', '12345/MC', '123, Health Avenue, Medical City', '+91 98765 43210', 'doctor@email.com', '10AM - 2PM, 5PM - 9PM'],
-            ['3', 'reception', 'reception', 'Reception Desk', '8888888888', 'receptionist', null, null, null, null, null, null],
-            ['4', 'billing', 'billing', 'Billing Desk', '7777777777', 'billing', null, null, null, null, null, null]
+            ['2', 'doctor', 'doctor', 'Dr. Amit Panchal', '9876543210', 'doctor', null, 'MBBS, MS - ENT', '12345/MC', '123, Health Avenue, Medical City', '+91 98765 43210', 'doctor@email.com', '10AM - 2PM, 5PM - 9PM', 500],
+            ['3', 'reception', 'reception', 'Reception Desk', '8888888888', 'receptionist', '2', null, null, null, null, null, null, null],
+            ['4', 'billing', 'billing', 'Billing Desk', '7777777777', 'billing', '2', null, null, null, null, null, null, null]
         ];
 
         for (const user of users) {
@@ -28,19 +28,21 @@ const seedData = async () => {
             await connection.query(`
                 INSERT INTO users (
                     id, username, password, fullName, mobile, role,
-                    doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
+                    assignedDoctorId, doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings, defaultConsultationFee
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     fullName = VALUES(fullName),
                     mobile = VALUES(mobile),
                     password = VALUES(password),
+                    assignedDoctorId = VALUES(assignedDoctorId),
                     doctorTitle = VALUES(doctorTitle),
                     doctorRegistrationNumber = VALUES(doctorRegistrationNumber),
                     doctorClinicAddress = VALUES(doctorClinicAddress),
                     doctorClinicPhone = VALUES(doctorClinicPhone),
                     doctorEmail = VALUES(doctorEmail),
-                    doctorTimings = VALUES(doctorTimings)
+                    doctorTimings = VALUES(doctorTimings),
+                    defaultConsultationFee = VALUES(defaultConsultationFee)
              `, user);
         }
         console.log('Users seeded.');

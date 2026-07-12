@@ -14,6 +14,7 @@
                     <th *ngIf="canManageAdmins">Password</th>
                     <th>Mobile</th>
                     <th>Role</th>
+                    <th>Doctor</th>
                     <th>Actions</th>
                 </tr>
             </ng-template>
@@ -45,10 +46,15 @@
                             {{ displayRoleLabel(user.role) }}
                         </span>
                     </td>
+                    <td>{{ getAssignedDoctorName(user) }}</td>
                     <td>
                         <button pButton icon="pi pi-pencil" class="p-button-rounded p-button-text p-button-sm"
                             [disabled]="!canEditUser(user)"
                             (click)="showDialog(user)"></button>
+                        <button *ngIf="user.role === 'doctor' && canManageAccessControls" pButton icon="pi pi-key"
+                            class="p-button-rounded p-button-text p-button-sm"
+                            title="Access Control"
+                            (click)="showAccessControl(user)"></button>
                         <button pButton icon="pi pi-trash"
                             class="p-button-rounded p-button-text p-button-danger p-button-sm"
                             [disabled]="!canEditUser(user)"
@@ -83,6 +89,16 @@
                     [style]="{'width':'100%'}"></p-dropdown>
             </div>
 
+            <!-- Assigned Doctor -->
+            <div *ngIf="isStaffRole" class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Doctor <span class="text-red-500">*</span></label>
+                <p-dropdown [options]="doctorOptions" formControlName="assignedDoctorId" appendTo="body"
+                    placeholder="Select doctor"
+                    [style]="{'width':'100%'}"></p-dropdown>
+                <small *ngIf="userForm.get('assignedDoctorId')?.touched && userForm.get('assignedDoctorId')?.errors?.['required']"
+                    class="text-red-500 text-xs">Doctor is required for Reception and Prescription users.</small>
+            </div>
+
             <!-- Username -->
             <div class="flex flex-col gap-1">
                 <label class="font-semibold text-sm">Username <span class="text-red-500">*</span></label>
@@ -94,7 +110,8 @@
             <!-- Mobile -->
             <div class="flex flex-col gap-1">
                 <label class="font-semibold text-sm">Mobile <span class="text-red-500">*</span></label>
-                <input pInputText formControlName="mobile" placeholder="10-digit mobile" maxlength="10" />
+                <input pInputText formControlName="mobile" placeholder="10-digit mobile" maxlength="10"
+                    inputmode="numeric" />
                 <small *ngIf="userForm.get('mobile')?.touched && userForm.get('mobile')?.invalid"
                     class="text-red-500 text-xs">Invalid 10-digit Mobile.</small>
             </div>
@@ -159,6 +176,12 @@
                 <input pInputText formControlName="doctorTimings" placeholder="e.g. 10AM - 2PM, 5PM - 9PM" />
                 <small *ngIf="isInvalid('doctorTimings')" class="text-red-500 text-xs">Timings are required.</small>
             </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="font-semibold text-sm">Default Fee <span class="text-red-500">*</span></label>
+                <input pInputText type="number" formControlName="defaultConsultationFee" placeholder="e.g. 500" />
+                <small *ngIf="isInvalid('defaultConsultationFee')" class="text-red-500 text-xs">Default fee is required.</small>
+            </div>
         </div>
 
         <div class="flex justify-end gap-2 mt-2 pt-4 border-t border-gray-100">
@@ -166,6 +189,47 @@
             <button pButton label="Save User" type="submit" [disabled]="userForm.invalid"></button>
         </div>
     </form>
+</p-dialog>
+
+<p-dialog header="Access Control" [(visible)]="displayAccessDialog"
+    [modal]="true" [style]="{width: '90vw', maxWidth: '560px'}"
+    [draggable]="false" [resizable]="false" [baseZIndex]="10000">
+    <div class="space-y-4">
+        <div>
+            <p class="text-sm font-semibold text-gray-800">
+                {{ selectedAccessDoctor?.fullName || 'Doctor' }}
+            </p>
+            <p class="text-xs text-gray-500">Set tabs available for Reception and Prescription users.</p>
+        </div>
+
+        <div class="overflow-hidden rounded-lg border border-gray-200">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <tr>
+                        <th class="px-3 py-2">Role</th>
+                        <th *ngFor="let tab of accessTabs" class="px-3 py-2 text-center">{{ tab.label }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <tr *ngFor="let role of accessRoles">
+                        <td class="px-3 py-3 font-semibold text-gray-700">{{ role.label }}</td>
+                        <td *ngFor="let tab of accessTabs" class="px-3 py-3 text-center">
+                            <input
+                                type="checkbox"
+                                class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                [checked]="isAccessAllowed(role.value, tab.value)"
+                                (change)="setAccessAllowed(role.value, tab.value, $any($event.target).checked)" />
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-gray-100 pt-4">
+            <button pButton label="Cancel" type="button" class="p-button-text" (click)="displayAccessDialog = false"></button>
+            <button pButton label="Save Controls" type="button" icon="pi pi-save" (click)="saveAccessControls()"></button>
+        </div>
+    </div>
 </p-dialog>
 
 <!-- Confirmation Dialog -->

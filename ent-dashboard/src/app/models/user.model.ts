@@ -5,10 +5,12 @@ export interface User {
     fullName: string;
     mobile?: string;
     role: 'admin' | 'doctor' | 'receptionist' | 'billing';
+    assignedDoctorId?: string | null;
     doctorTitle?: string;
     doctorRegistrationNumber?: string;
     doctorClinicAddress?: string;
     doctorClinicPhone?: string;
     doctorEmail?: string;
     doctorTimings?: string;
+    defaultConsultationFee?: number | string | null;
 }

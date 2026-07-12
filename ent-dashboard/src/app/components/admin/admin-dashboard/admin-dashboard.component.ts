@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
+import { AccessControl, AccessRole, AccessTab } from '../../../models/access-control.model';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -24,10 +25,23 @@ export class AdminDashboardComponent implements OnInit {
     users: User[] = [];
     allUsers: User[] = [];
     displayDialog: boolean = false;
+    displayAccessDialog: boolean = false;
     editingUser: { [key: string]: boolean } = {}; // Track which user is being edited
     visibleUserPasswords: { [key: string]: boolean } = {};
     userForm!: FormGroup;
     currentUser: User | null = null;
+    selectedAccessDoctor?: User;
+    accessControls: AccessControl[] = [];
+    accessRoles: Array<{ label: string; value: AccessRole }> = [
+        { label: 'Reception', value: 'receptionist' },
+        { label: 'Prescription', value: 'billing' }
+    ];
+    accessTabs: Array<{ label: string; value: AccessTab }> = [
+        { label: 'Reception', value: 'reception' },
+        { label: 'Doctor', value: 'doctor' },
+        { label: 'Prescription', value: 'billing' },
+        { label: 'History', value: 'history' }
+    ];
     roles = [
         { label: 'Doctor', value: 'doctor' },
         { label: 'Receptionist', value: 'receptionist' },
@@ -45,6 +59,7 @@ export class AdminDashboardComponent implements OnInit {
     ngOnInit() {
         this.currentUser = this.authService.currentUserValue;
         this.loadUsers();
+        this.loadAccessControls();
         this.userForm = this.fb.group({
             id: [null], // For edit mode
             username: ['', Validators.required],
@@ -58,15 +73,21 @@ export class AdminDashboardComponent implements OnInit {
             doctorClinicAddress: [''],
             doctorClinicPhone: [''],
             doctorEmail: [''],
-            doctorTimings: ['']
+            doctorTimings: [''],
+            defaultConsultationFee: [500],
+            assignedDoctorId: ['']
         }, { validators: this.passwordMatchValidator });
 
-        this.userForm.get('role')?.valueChanges.subscribe(() => this.updateDoctorFieldValidators());
-        this.updateDoctorFieldValidators();
+        this.userForm.get('role')?.valueChanges.subscribe(() => this.updateRoleFieldValidators());
+        this.updateRoleFieldValidators();
     }
 
     get canManageAdmins(): boolean {
         return this.currentUser?.role === 'admin';
+    }
+
+    get canManageAccessControls(): boolean {
+        return this.currentUser?.role === 'admin' || this.currentUser?.role === 'doctor';
     }
 
     get availableRoles() {
@@ -75,8 +96,26 @@ export class AdminDashboardComponent implements OnInit {
             : this.roles.filter(role => role.value !== 'admin');
     }
 
+    get doctorOptions(): Array<{ label: string; value: string }> {
+        if (this.currentUser?.role === 'doctor') {
+            return [{ label: this.currentUser.fullName, value: this.currentUser.id }];
+        }
+
+        return this.allUsers
+            .filter(user => user.role === 'doctor')
+            .map(user => ({ label: user.fullName, value: user.id }));
+    }
+
     displayRoleLabel(role: string): string {
         return role === 'billing' ? 'Prescription' : role;
+    }
+
+    getAssignedDoctorName(user: User): string {
+        if (!user.assignedDoctorId) {
+            return '-';
+        }
+
+        return this.allUsers.find(doctor => doctor.id === user.assignedDoctorId)?.fullName || '-';
     }
 
     isPasswordVisible(user: User): boolean {
@@ -99,6 +138,11 @@ export class AdminDashboardComponent implements OnInit {
         return this.isPasswordVisible(user) ? user.password : '********';
     }
 
+    getFeeInputValue(value: User['defaultConsultationFee']): number {
+        const fee = Number(value);
+        return Number.isFinite(fee) && fee > 0 ? fee : 500;
+    }
+
     passwordMatchValidator(form: FormGroup) {
         const password = form.get('password');
         const confirmPassword = form.get('confirmPassword');
@@ -109,14 +153,20 @@ export class AdminDashboardComponent implements OnInit {
         return this.userForm?.get('role')?.value === 'doctor';
     }
 
-    private updateDoctorFieldValidators() {
+    get isStaffRole(): boolean {
+        const role = this.userForm?.get('role')?.value;
+        return role === 'receptionist' || role === 'billing';
+    }
+
+    private updateRoleFieldValidators() {
         const doctorFields = [
             'doctorTitle',
             'doctorRegistrationNumber',
             'doctorClinicAddress',
             'doctorClinicPhone',
             'doctorEmail',
-            'doctorTimings'
+            'doctorTimings',
+            'defaultConsultationFee'
         ];
 
         doctorFields.forEach(fieldName => {
@@ -126,9 +176,13 @@ export class AdminDashboardComponent implements OnInit {
             }
 
             if (this.isDoctorRole) {
-                control.setValidators(fieldName === 'doctorEmail'
-                    ? [Validators.required, Validators.email]
-                    : [Validators.required]);
+                if (fieldName === 'doctorEmail') {
+                    control.setValidators([Validators.required, Validators.email]);
+                } else if (fieldName === 'defaultConsultationFee') {
+                    control.setValidators([Validators.required, Validators.min(1)]);
+                } else {
+                    control.setValidators([Validators.required]);
+                }
             } else {
                 control.clearValidators();
                 control.setValue('');
@@ -136,6 +190,20 @@ export class AdminDashboardComponent implements OnInit {
 
             control.updateValueAndValidity({ emitEvent: false });
         });
+
+        const assignedDoctorControl = this.userForm.get('assignedDoctorId');
+        if (assignedDoctorControl) {
+            if (this.isStaffRole) {
+                assignedDoctorControl.setValidators([Validators.required]);
+                if (!assignedDoctorControl.value && this.doctorOptions.length === 1) {
+                    assignedDoctorControl.setValue(this.doctorOptions[0].value, { emitEvent: false });
+                }
+            } else {
+                assignedDoctorControl.clearValidators();
+                assignedDoctorControl.setValue('', { emitEvent: false });
+            }
+            assignedDoctorControl.updateValueAndValidity({ emitEvent: false });
+        }
     }
 
     isInvalid(fieldName: string): boolean {
@@ -147,12 +215,26 @@ export class AdminDashboardComponent implements OnInit {
         this.authService.getUsers().subscribe(users => {
             this.allUsers = users;
             this.users = this.filterVisibleUsers(users);
+            this.updateRoleFieldValidators();
+        });
+    }
+
+    loadAccessControls() {
+        this.authService.ensureAccessControlsLoaded().subscribe(controls => {
+            this.accessControls = controls.map(control => ({ ...control }));
         });
     }
 
     private filterVisibleUsers(users: User[]): User[] {
         if (this.canManageAdmins) {
             return users;
+        }
+
+        if (this.currentUser?.role === 'doctor') {
+            return users.filter(user =>
+                user.role !== 'admin'
+                && (user.id === this.currentUser?.id || user.assignedDoctorId === this.currentUser?.id)
+            );
         }
 
         return users.filter(user => user.role !== 'admin');
@@ -175,11 +257,13 @@ export class AdminDashboardComponent implements OnInit {
                 doctorClinicAddress: user.doctorClinicAddress || '',
                 doctorClinicPhone: user.doctorClinicPhone || '',
                 doctorEmail: user.doctorEmail || '',
-                doctorTimings: user.doctorTimings || ''
+                doctorTimings: user.doctorTimings || '',
+                defaultConsultationFee: this.getFeeInputValue(user.defaultConsultationFee),
+                assignedDoctorId: user.assignedDoctorId || ''
             });
         } else {
             // Create Mode
-            this.userForm.reset({ role: 'doctor' });
+            this.userForm.reset({ role: 'doctor', defaultConsultationFee: 500 });
             this.userForm.get('id')?.setValue(null);
         }
 
@@ -187,7 +271,67 @@ export class AdminDashboardComponent implements OnInit {
             this.userForm.get('role')?.setValue('doctor');
         }
 
-        this.updateDoctorFieldValidators();
+        this.updateRoleFieldValidators();
+    }
+
+    showAccessControl(user: User) {
+        if (!this.canManageAccessControls || user.role !== 'doctor') {
+            return;
+        }
+
+        this.selectedAccessDoctor = user;
+        this.accessControls = this.authService.getAccessControlsForDoctor(user.id).map(control => ({ ...control }));
+        this.displayAccessDialog = true;
+    }
+
+    isAccessAllowed(targetRole: AccessRole, tabKey: AccessTab): boolean {
+        return !!this.accessControls.find(control =>
+            control.doctorId === this.selectedAccessDoctor?.id
+            && control.targetRole === targetRole
+            && control.tabKey === tabKey
+            && control.isAllowed
+        );
+    }
+
+    setAccessAllowed(targetRole: AccessRole, tabKey: AccessTab, isAllowed: boolean): void {
+        const doctorId = this.selectedAccessDoctor?.id || '';
+        const existingControl = this.accessControls.find(control =>
+            control.doctorId === doctorId
+            && control.targetRole === targetRole
+            && control.tabKey === tabKey
+        );
+
+        if (existingControl) {
+            existingControl.isAllowed = isAllowed;
+            return;
+        }
+
+        this.accessControls.push({ doctorId, targetRole, tabKey, isAllowed });
+    }
+
+    saveAccessControls() {
+        if (!this.selectedAccessDoctor) {
+            return;
+        }
+
+        const controlsToSave = this.authService.mergeDoctorAccessControls(this.selectedAccessDoctor.id, this.accessControls)
+            .filter(control => control.doctorId === this.selectedAccessDoctor?.id);
+        this.authService.updateAccessControls(controlsToSave).subscribe({
+            next: (controls) => {
+                this.accessControls = this.authService.getAccessControlsForDoctor(this.selectedAccessDoctor!.id)
+                    .map(control => ({ ...control }));
+                this.displayAccessDialog = false;
+                this.messageService.add({
+                    severity: 'success',
+                    summary: 'Success',
+                    detail: 'Access controls updated',
+                    life: 3000
+                });
+            },
+            error: (err) => {
+                alert(err.error?.message || 'Error updating access controls');
+            }
+        });
     }
 
     saveUser() {
@@ -205,7 +349,9 @@ export class AdminDashboardComponent implements OnInit {
                 doctorClinicAddress: formVal.role === 'doctor' ? formVal.doctorClinicAddress : undefined,
                 doctorClinicPhone: formVal.role === 'doctor' ? formVal.doctorClinicPhone : undefined,
                 doctorEmail: formVal.role === 'doctor' ? formVal.doctorEmail : undefined,
-                doctorTimings: formVal.role === 'doctor' ? formVal.doctorTimings : undefined
+                doctorTimings: formVal.role === 'doctor' ? formVal.doctorTimings : undefined,
+                defaultConsultationFee: formVal.role === 'doctor' ? Number(formVal.defaultConsultationFee || 0) : undefined,
+                assignedDoctorId: ['receptionist', 'billing'].includes(formVal.role) ? formVal.assignedDoctorId : undefined
             };
 
             // Logic to determine if create or update is handled in Service or here

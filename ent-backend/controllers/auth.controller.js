@@ -1,4 +1,35 @@
 const db = require('../config/db.config');
+const { ensureDefaultAccessControlsForDoctor } = require('../models');
+
+const ACCESS_ROLES = ['receptionist', 'billing'];
+const ACCESS_TABS = ['reception', 'doctor', 'billing', 'history'];
+const STAFF_ROLES = ['receptionist', 'billing'];
+
+const mapAccessControlRow = (row) => ({
+    doctorId: row.doctorId,
+    targetRole: row.targetRole,
+    tabKey: row.tabKey,
+    isAllowed: !!row.isAllowed
+});
+
+const assertAssignedDoctor = async (role, assignedDoctorId, res) => {
+    if (!STAFF_ROLES.includes(role)) {
+        return true;
+    }
+
+    if (!assignedDoctorId) {
+        res.status(400).json({ message: 'Doctor selection is required for Reception and Prescription users' });
+        return false;
+    }
+
+    const [doctorRows] = await db.query('SELECT id FROM users WHERE id = ? AND role = ?', [assignedDoctorId, 'doctor']);
+    if (doctorRows.length === 0) {
+        res.status(400).json({ message: 'Selected doctor was not found' });
+        return false;
+    }
+
+    return true;
+};
 
 exports.login = async (req, res) => {
     try {
@@ -41,7 +72,9 @@ exports.register = async (req, res) => {
             doctorClinicAddress,
             doctorClinicPhone,
             doctorEmail,
-            doctorTimings
+            doctorTimings,
+            defaultConsultationFee,
+            assignedDoctorId
         } = req.body;
 
         // Simple validation
@@ -51,6 +84,10 @@ exports.register = async (req, res) => {
 
         if (role === 'doctor' && (!doctorTitle || !doctorRegistrationNumber || !doctorClinicAddress || !doctorClinicPhone || !doctorEmail || !doctorTimings)) {
             return res.status(400).json({ message: 'Doctor profile fields are required for doctor role' });
+        }
+
+        if (!await assertAssignedDoctor(role, assignedDoctorId, res)) {
+            return;
         }
 
         // Check if username exists for a DIFFERENT user (exclude current user if updating)
@@ -69,9 +106,9 @@ exports.register = async (req, res) => {
                 // Update existing user
                 await db.query(
                     `UPDATE users
-                     SET username = ?, password = ?, fullName = ?, mobile = ?, role = ?,
+                     SET username = ?, password = ?, fullName = ?, mobile = ?, role = ?, assignedDoctorId = ?,
                          doctorTitle = ?, doctorRegistrationNumber = ?, doctorClinicAddress = ?,
-                         doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?
+                         doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?, defaultConsultationFee = ?
                      WHERE id = ?`,
                     [
                         username,
@@ -79,15 +116,20 @@ exports.register = async (req, res) => {
                         fullName,
                         mobile,
                         role,
+                        STAFF_ROLES.includes(role) ? assignedDoctorId : null,
                         role === 'doctor' ? doctorTitle : null,
                         role === 'doctor' ? doctorRegistrationNumber : null,
                         role === 'doctor' ? doctorClinicAddress : null,
                         role === 'doctor' ? doctorClinicPhone : null,
                         role === 'doctor' ? doctorEmail : null,
                         role === 'doctor' ? doctorTimings : null,
+                        role === 'doctor' ? Number(defaultConsultationFee || 0) || null : null,
                         id
                     ]
                 );
+                if (role === 'doctor') {
+                    await ensureDefaultAccessControlsForDoctor(db, id);
+                }
                 return res.json({ message: 'User updated successfully', id });
             }
         }
@@ -96,8 +138,8 @@ exports.register = async (req, res) => {
         await db.query(
             `INSERT INTO users (
                 id, username, password, fullName, mobile, role,
-                doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                assignedDoctorId, doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings, defaultConsultationFee
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 userId,
                 username,
@@ -105,14 +147,19 @@ exports.register = async (req, res) => {
                 fullName,
                 mobile,
                 role,
+                STAFF_ROLES.includes(role) ? assignedDoctorId : null,
                 role === 'doctor' ? doctorTitle : null,
                 role === 'doctor' ? doctorRegistrationNumber : null,
                 role === 'doctor' ? doctorClinicAddress : null,
                 role === 'doctor' ? doctorClinicPhone : null,
                 role === 'doctor' ? doctorEmail : null,
-                role === 'doctor' ? doctorTimings : null
+                role === 'doctor' ? doctorTimings : null,
+                role === 'doctor' ? Number(defaultConsultationFee || 0) || null : null
             ]
         );
+        if (role === 'doctor') {
+            await ensureDefaultAccessControlsForDoctor(db, userId);
+        }
 
         res.status(201).json({ message: 'User created successfully', id: userId });
 
@@ -125,13 +172,95 @@ exports.register = async (req, res) => {
 exports.getUsers = async (req, res) => {
     try {
         const [users] = await db.query(`
-            SELECT id, username, password, fullName, mobile, role,
-                   doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone, doctorEmail, doctorTimings
+            SELECT id, username, password, fullName, mobile, role, assignedDoctorId,
+                   doctorTitle, doctorRegistrationNumber, doctorClinicAddress, doctorClinicPhone,
+                   doctorEmail, doctorTimings, defaultConsultationFee
             FROM users
         `);
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users' });
+    }
+}
+
+exports.getAccessControls = async (req, res) => {
+    try {
+        const [controls] = await db.query(`
+            SELECT doctorId, targetRole, tabKey, isAllowed
+            FROM role_access_controls
+            ORDER BY doctorId, targetRole, tabKey
+        `);
+
+        res.json(controls.map(mapAccessControlRow));
+    } catch (error) {
+        console.error('Get access controls error:', error);
+        res.status(500).json({ message: 'Error fetching access controls' });
+    }
+}
+
+exports.updateAccessControls = async (req, res) => {
+    try {
+        const controls = Array.isArray(req.body?.controls) ? req.body.controls : [];
+        if (controls.length === 0) {
+            return res.status(400).json({ message: 'Access controls are required' });
+        }
+
+        const invalidControl = controls.find(control =>
+            !control?.doctorId
+            || !ACCESS_ROLES.includes(control?.targetRole)
+            || !ACCESS_TABS.includes(control?.tabKey)
+            || typeof control?.isAllowed !== 'boolean'
+        );
+        if (invalidControl) {
+            return res.status(400).json({ message: 'Invalid access control found' });
+        }
+
+        const doctorIds = [...new Set(controls.map(control => control.doctorId))];
+        const [doctorRows] = await db.query(
+            `SELECT id FROM users WHERE role = 'doctor' AND id IN (${doctorIds.map(() => '?').join(', ')})`,
+            doctorIds
+        );
+        const validDoctorIds = new Set(doctorRows.map(row => row.id));
+        if (doctorIds.some(doctorId => !validDoctorIds.has(doctorId))) {
+            return res.status(400).json({ message: 'Access controls must belong to a valid doctor' });
+        }
+
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            for (const control of controls) {
+                await connection.query(
+                    `
+                    INSERT INTO role_access_controls (doctorId, targetRole, tabKey, isAllowed)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE isAllowed = VALUES(isAllowed)
+                    `,
+                    [control.doctorId, control.targetRole, control.tabKey, control.isAllowed ? 1 : 0]
+                );
+            }
+
+            await connection.commit();
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+        const [updatedControls] = await db.query(`
+            SELECT doctorId, targetRole, tabKey, isAllowed
+            FROM role_access_controls
+            ORDER BY doctorId, targetRole, tabKey
+        `);
+
+        res.json({
+            message: 'Access controls updated',
+            controls: updatedControls.map(mapAccessControlRow)
+        });
+    } catch (error) {
+        console.error('Update access controls error:', error);
+        res.status(500).json({ message: 'Error updating access controls' });
     }
 }
 
@@ -149,7 +278,9 @@ exports.updateUser = async (req, res) => {
             doctorClinicAddress,
             doctorClinicPhone,
             doctorEmail,
-            doctorTimings
+            doctorTimings,
+            defaultConsultationFee,
+            assignedDoctorId
         } = req.body;
 
         const [currentRows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
@@ -174,12 +305,16 @@ exports.updateUser = async (req, res) => {
             return res.status(400).json({ message: 'Doctor profile fields are required for doctor role' });
         }
 
+        if (!await assertAssignedDoctor(role, assignedDoctorId, res)) {
+            return;
+        }
+
         // Build dynamic query or just update all allowed
         await db.query(
             `UPDATE users
-             SET username = ?, fullName = ?, mobile = ?, password = ?, role = ?,
+             SET username = ?, fullName = ?, mobile = ?, password = ?, role = ?, assignedDoctorId = ?,
                  doctorTitle = ?, doctorRegistrationNumber = ?, doctorClinicAddress = ?,
-                 doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?
+                 doctorClinicPhone = ?, doctorEmail = ?, doctorTimings = ?, defaultConsultationFee = ?
              WHERE id = ?`,
             [
                 username,
@@ -187,15 +322,20 @@ exports.updateUser = async (req, res) => {
                 mobile,
                 finalPassword,
                 role,
+                STAFF_ROLES.includes(role) ? assignedDoctorId : null,
                 role === 'doctor' ? doctorTitle : null,
                 role === 'doctor' ? doctorRegistrationNumber : null,
                 role === 'doctor' ? doctorClinicAddress : null,
                 role === 'doctor' ? doctorClinicPhone : null,
                 role === 'doctor' ? doctorEmail : null,
                 role === 'doctor' ? doctorTimings : null,
+                role === 'doctor' ? Number(defaultConsultationFee || 0) || null : null,
                 id
             ]
         );
+        if (role === 'doctor') {
+            await ensureDefaultAccessControlsForDoctor(db, id);
+        }
         res.json({ message: 'User updated' });
 
     } catch (error) {

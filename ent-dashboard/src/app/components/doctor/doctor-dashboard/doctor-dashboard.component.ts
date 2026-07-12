@@ -518,9 +518,11 @@ export class DoctorDashboardComponent implements OnInit {
     this.addDraftMedicineToPrescription();
   }
 
-  onDosageSelect(event: any) {
+  onDosageSelect(event: any, auto?: AutoComplete) {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     const selectedItem = event.value || event;
+    auto?.hide();
+
     if (selectedItem && typeof selectedItem === 'string' && !this.dosages.includes(selectedItem)) {
       this.doctorData.addDosage(selectedItem).subscribe({
         next: (res) => {
@@ -612,7 +614,7 @@ export class DoctorDashboardComponent implements OnInit {
         this.diagnosisList = this.diagnosisList.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
         this.filteredDiagnoses = this.filteredDiagnoses.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
       },
-      error: (err) => console.error('Error deleting diagnosis', err)
+      error: (err) => this.showMasterDeleteError('diagnosis', err)
     });
   }
 
@@ -623,7 +625,7 @@ export class DoctorDashboardComponent implements OnInit {
         this.medicines = this.medicines.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
         this.filteredMedicines = this.filteredMedicines.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
       },
-      error: (err) => console.error('Error deleting medicine', err)
+      error: (err) => this.showMasterDeleteError('medicine', err)
     });
   }
 
@@ -634,7 +636,17 @@ export class DoctorDashboardComponent implements OnInit {
         this.dosages = this.dosages.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
         this.filteredDosages = this.filteredDosages.filter(item => this.normalizeMasterValue(item).toLowerCase() !== normalizedName.toLowerCase());
       },
-      error: (err) => console.error('Error deleting dosage', err)
+      error: (err) => this.showMasterDeleteError('dosage', err)
+    });
+  }
+
+  private showMasterDeleteError(type: 'diagnosis' | 'medicine' | 'dosage', err: any): void {
+    console.error(`Error deleting ${type}`, err);
+    this.messageService.add({
+      severity: err.status === 409 ? 'warn' : 'error',
+      summary: err.status === 409 ? 'In Use' : 'Delete Failed',
+      detail: err.error?.message || err.error?.error || `Unable to delete ${type}`,
+      life: 3500
     });
   }
 

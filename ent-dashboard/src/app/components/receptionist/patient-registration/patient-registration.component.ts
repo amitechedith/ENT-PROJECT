@@ -15,6 +15,7 @@ import { MenuItem } from 'primeng/api';
 import { DatePipe } from '@angular/common';
 import { PatientService } from '../../../services/patient.service';
 import { AuthService } from '../../../services/auth.service';
+import { User } from '../../../models/user.model';
 
 interface DateSummary {
   date: Date;
@@ -57,6 +58,10 @@ export class PatientRegistrationComponent implements OnInit {
   selectedDate: Date = new Date();
   menuItems: MenuItem[] = [];
   selectedPatientForMenu: Patient | null = null;
+  defaultConsultationFee = 500;
+  assignedDoctorName = 'Doctor not assigned';
+  patientCodeLookup = '';
+  loadingPatientCode = false;
 
   patient: Patient = this.createDefaultPatient();
 
@@ -86,13 +91,53 @@ export class PatientRegistrationComponent implements OnInit {
   ) { }
 
   ngOnInit() {
+    this.loadDefaultConsultationFee();
     this.loadDateSummaries();
     this.loadPatientsForSelectedDate();
+  }
+
+  private loadDefaultConsultationFee(): void {
+    const currentUser = this.authService.currentUserValue;
+    this.authService.getUsers().subscribe({
+      next: (users) => {
+        const freshCurrentUser = users.find(user => user.id === currentUser?.id) || currentUser;
+        const doctor = this.resolveCurrentDoctor(users, freshCurrentUser);
+        const fee = this.parseDefaultConsultationFee(doctor?.defaultConsultationFee);
+        this.defaultConsultationFee = fee || 500;
+        this.assignedDoctorName = doctor?.fullName || 'Doctor not assigned';
+        if (!this.showAddForm || !this.patient.consultationFee || Number(this.patient.consultationFee) === 500) {
+          this.patient.consultationFee = this.defaultConsultationFee;
+        }
+      },
+      error: (err) => console.error('Failed to load default consultation fee', err)
+    });
+  }
+
+  private resolveCurrentDoctor(users: User[], currentUser: User | null): User | undefined {
+    if (currentUser?.role === 'doctor') {
+      return users.find(user => user.id === currentUser.id && user.role === 'doctor');
+    }
+
+    if (currentUser?.assignedDoctorId) {
+      return users.find(user => user.id === currentUser.assignedDoctorId && user.role === 'doctor');
+    }
+
+    return users.find(user => user.role === 'doctor');
+  }
+
+  private parseDefaultConsultationFee(value: User['defaultConsultationFee']): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const fee = Number(value);
+    return Number.isFinite(fee) && fee > 0 ? fee : null;
   }
 
   private createDefaultPatient(): Patient {
     return {
       id: 0,
+      patientCode: '',
       name: '',
       mobile: '',
       age: 0,
@@ -101,21 +146,88 @@ export class PatientRegistrationComponent implements OnInit {
       status: 'Waiting',
       paymentMode: 'QR',
       latestVisitDate: '',
-      consultationFee: 500
+      consultationFee: this.defaultConsultationFee
     };
   }
 
   toggleAddForm() {
-    this.showAddForm = !this.showAddForm;
     if (this.showAddForm) {
-      this.patient = this.createDefaultPatient();
-      this.patientService.getNextToken().subscribe({
-        next: (res) => {
-          this.patient.tokenNumber = res.nextToken;
-        },
-        error: (err) => console.error("Error fetching token", err)
-      });
+      this.closeAddForm();
+      return;
     }
+
+    this.openAddPatient();
+  }
+
+  openAddPatient(): void {
+    const patientCode = this.normalizePatientCode(this.patientCodeLookup);
+    if (patientCode) {
+      this.loadPatientByCode(patientCode);
+      return;
+    }
+
+    this.openBlankPatientForm();
+  }
+
+  private closeAddForm(): void {
+    this.showAddForm = false;
+    this.patient = this.createDefaultPatient();
+  }
+
+  private openBlankPatientForm(): void {
+    this.showAddForm = true;
+    this.patient = this.createDefaultPatient();
+    this.patient.latestVisitDate = this.getSelectedDateKey();
+    this.assignNextToken();
+  }
+
+  private loadPatientByCode(patientCode: string): void {
+    this.loadingPatientCode = true;
+    this.patientService.getPatientByCode(patientCode).subscribe({
+      next: (patient) => {
+        this.showAddForm = true;
+        this.patient = {
+          ...patient,
+          patientCode: patient.patientCode || patientCode,
+          status: 'Waiting',
+          paymentMode: patient.paymentMode || 'QR',
+          consultationFee: this.defaultConsultationFee,
+          latestVisitDate: this.getSelectedDateKey() || patient.latestVisitDate || ''
+        };
+        this.assignNextToken();
+        this.loadingPatientCode = false;
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Patient Loaded',
+          detail: `${patient.name} loaded for today's visit.`
+        });
+      },
+      error: (err) => {
+        this.loadingPatientCode = false;
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'Patient Not Found',
+          detail: err.error?.message || 'No patient found for this Patient ID.'
+        });
+      }
+    });
+  }
+
+  private assignNextToken(): void {
+    this.patientService.getNextToken(this.getSelectedDateKey()).subscribe({
+      next: (res) => {
+        this.patient.tokenNumber = res.nextToken;
+      },
+      error: (err) => console.error("Error fetching token", err)
+    });
+  }
+
+  private normalizePatientCode(value: string): string {
+    return value.trim().toUpperCase();
+  }
+
+  private getSelectedDateKey(): string {
+    return this.datePipe.transform(this.selectedDate, 'yyyy-MM-dd') || '';
   }
 
   onDateChange() {
@@ -304,15 +416,77 @@ export class PatientRegistrationComponent implements OnInit {
     return paymentMode === 'Cash' ? 'Cash' : 'QR';
   }
 
+  private isValidMobile(mobile?: string | null): boolean {
+    const value = String(mobile || '').trim();
+    return !value || /^[0-9]{10}$/.test(value);
+  }
+
+  private isValidAge(age?: number | null): boolean {
+    if (age === null || age === undefined || String(age).trim() === '') {
+      return true;
+    }
+
+    const value = Number(age);
+    return Number.isFinite(value) && value >= 0 && value < 100;
+  }
+
+  isPatientBasicsValid(patient: Patient): boolean {
+    return this.isValidMobile(patient.mobile) && this.isValidAge(patient.age);
+  }
+
+  isMobileValid(mobile?: string | null): boolean {
+    return this.isValidMobile(mobile);
+  }
+
+  isAgeValid(age?: number | null): boolean {
+    return this.isValidAge(age);
+  }
+
+  private validatePatientBasics(patient: Patient): boolean {
+    if (!this.isValidMobile(patient.mobile)) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Invalid Mobile',
+        detail: 'Enter a valid 10-digit mobile number.'
+      });
+      return false;
+    }
+
+    if (!this.isValidAge(patient.age)) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Invalid Age',
+        detail: 'Age should be below 100.'
+      });
+      return false;
+    }
+
+    return true;
+  }
+
   onSubmit() {
-    this.patientService.createPatient(this.patient).subscribe({
-      next: () => {
+    if (!this.validatePatientBasics(this.patient)) {
+      return;
+    }
+
+    this.patient.latestVisitDate = this.getSelectedDateKey();
+
+    const saveRequest = this.patient.id && this.patient.id > 0
+      ? this.patientService.registerPatientVisit(this.patient)
+      : this.patientService.createPatient(this.patient);
+
+    saveRequest.subscribe({
+      next: (result) => {
+        const patientCode = result?.patientCode || this.patient.patientCode;
         this.messageService.add({
           severity: 'success',
-          summary: 'Patient Added',
-          detail: `${this.patient.name} added successfully.`,
+          summary: this.patient.id && this.patient.id > 0 ? 'Visit Added' : 'Patient Added',
+          detail: patientCode
+            ? `${this.patient.name} saved successfully. Patient ID: ${patientCode}`
+            : `${this.patient.name} saved successfully.`,
         });
         this.patient = this.createDefaultPatient();
+        this.patientCodeLookup = '';
         this.showAddForm = false;
         this.loadDateSummaries();
         this.loadPatientsForSelectedDate();
@@ -337,6 +511,10 @@ export class PatientRegistrationComponent implements OnInit {
   }
 
   onRowSave(p: Patient) {
+    if (!this.validatePatientBasics(p)) {
+      return;
+    }
+
     if (p.id) {
         this.patientService.updatePatient(p).subscribe({
         next: () => {
@@ -355,7 +533,7 @@ export class PatientRegistrationComponent implements OnInit {
   }
 
   deletePatient(patient: Patient) {
-    this.patientService.deletePatient(patient.id!).subscribe({
+    this.patientService.deletePatient(patient.id!, this.getSelectedDateKey()).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'info',

@@ -26,6 +26,68 @@ function normalizePatientDates(patient) {
     };
 }
 
+function normalizePatientCode(value) {
+    return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+async function generatePatientCode(visitDateKey = getLocalDateKey()) {
+    const datePart = visitDateKey.slice(0, 7).replace('-', '');
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const [sequenceRows] = await db.query(
+            `
+            SELECT MAX(CAST(RIGHT(patientCode, 4) AS UNSIGNED)) AS maxSequence
+            FROM patients
+            WHERE patientCode LIKE ?
+            `,
+            [`PT${datePart}%`]
+        );
+        const nextSequence = (Number(sequenceRows[0]?.maxSequence) || 0) + 1 + attempt;
+        const patientCode = `PT${datePart}${String(nextSequence).padStart(4, '0')}`;
+        const [rows] = await db.query('SELECT id FROM patients WHERE patientCode = ? LIMIT 1', [patientCode]);
+        if (rows.length === 0) {
+            return patientCode;
+        }
+    }
+
+    const fallbackSequence = Number(String(Date.now()).slice(-4));
+    return `PT${datePart}${String(fallbackSequence).padStart(4, '0')}`;
+}
+
+async function getNextTokenForDate(dateKey) {
+    const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = ?', [dateKey]);
+    return (rows[0].maxToken || 0) + 1;
+}
+
+async function syncPatientProfileDetails(patientCode, details, excludePatientId = null) {
+    const normalizedCode = normalizePatientCode(patientCode);
+    if (!normalizedCode) {
+        return;
+    }
+
+    const params = [
+        details.name,
+        details.gender,
+        details.mobile
+    ];
+    let whereClause = 'patientCode = ?';
+    params.push(normalizedCode);
+
+    if (excludePatientId) {
+        whereClause += ' AND id <> ?';
+        params.push(excludePatientId);
+    }
+
+    await db.query(
+        `
+        UPDATE patients
+        SET name = ?, gender = ?, mobile = ?
+        WHERE ${whereClause}
+        `,
+        params
+    );
+}
+
 // Get all patients or filtered by date (for today's list)
 exports.getPatients = async (req, res) => {
     try {
@@ -91,6 +153,37 @@ exports.getPatientById = async (req, res) => {
     }
 }
 
+exports.getPatientByCode = async (req, res) => {
+    try {
+        const patientCode = normalizePatientCode(req.params.patientCode);
+        if (!patientCode) {
+            return res.status(400).json({ message: 'Patient ID is required' });
+        }
+
+        const [rows] = await db.query(
+            `
+            SELECT *
+            FROM patients
+            WHERE patientCode = ?
+            ORDER BY COALESCE(latestVisitDate, DATE(createdAt)) DESC, id DESC
+            LIMIT 1
+            `,
+            [patientCode]
+        );
+        if (rows.length === 0) return res.status(404).json({ message: 'Patient not found' });
+
+        const patient = normalizePatientDates(rows[0]);
+        const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
+        patient.currentDiagnosis = diags.map(d => d.diagnosisName);
+        patient.paymentMode = patient.paymentMode || 'QR';
+
+        res.json(patient);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error fetching patient' });
+    }
+};
+
 exports.getPatientVisitHistory = async (req, res) => {
     try {
         const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
@@ -105,6 +198,7 @@ exports.getPatientVisitHistory = async (req, res) => {
             conditions.push(`
                 (
                     CAST(p.id AS CHAR) LIKE ?
+                    OR COALESCE(p.patientCode, '') LIKE ?
                     OR CAST(p.tokenNumber AS CHAR) LIKE ?
                     OR p.name LIKE ?
                     OR COALESCE(p.mobile, '') LIKE ?
@@ -130,7 +224,7 @@ exports.getPatientVisitHistory = async (req, res) => {
                     )
                 )
             `);
-            params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+            params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
         }
 
         if (fromDate) {
@@ -300,9 +394,8 @@ exports.getPatientVisitHistory = async (req, res) => {
 
 exports.getNextToken = async (req, res) => {
     try {
-        const todayKey = getLocalDateKey();
-        const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = ?', [todayKey]);
-        const nextToken = (rows[0].maxToken || 0) + 1;
+        const visitDateKey = normalizeDateValue(req.query.date) || getLocalDateKey();
+        const nextToken = await getNextTokenForDate(visitDateKey);
         console.log("Next Token Calculated:", nextToken);
         res.json({ nextToken });
     } catch (error) {
@@ -313,7 +406,7 @@ exports.getNextToken = async (req, res) => {
 
 exports.createPatient = async (req, res) => {
     try {
-        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode } = req.body;
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, latestVisitDate } = req.body;
         console.log("Create Patient Body:", req.body);
 
         const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
@@ -324,21 +417,92 @@ exports.createPatient = async (req, res) => {
         const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
 
         let finalToken = tokenNumber;
-        const todayKey = getLocalDateKey();
+        const visitDateKey = normalizeDateValue(latestVisitDate) || getLocalDateKey();
         if (!finalToken) {
-            // Calculate Token Number for today
-            const [rows] = await db.query('SELECT MAX(tokenNumber) as maxToken FROM patients WHERE latestVisitDate = ?', [todayKey]);
-            finalToken = (rows[0].maxToken || 0) + 1;
+            finalToken = await getNextTokenForDate(visitDateKey);
         }
+        const patientCode = await generatePatientCode(visitDateKey);
 
         const [result] = await db.query(
-            'INSERT INTO patients (name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, "Waiting", ?, ?, ?, ?)',
-            [name, age, gender, finalMobile, visitReason, finalPaymentMode, todayKey, finalToken, finalConsultationFee]
+            'INSERT INTO patients (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, ?, "Waiting", ?, ?, ?, ?)',
+            [patientCode, name, age, gender, finalMobile, visitReason, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee]
         );
-        res.json({ id: result.insertId, tokenNumber: finalToken, message: 'Patient registered' });
+        res.json({ id: result.insertId, patientCode, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error creating patient' });
+    }
+};
+
+exports.registerPatientVisit = async (req, res) => {
+    try {
+        console.log("Register Visit Body:", req.body);
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, medicalBackground, latestVisitDate } = req.body;
+
+        const [existingRows] = await db.query('SELECT * FROM patients WHERE id = ?', [req.params.id]);
+        if (existingRows.length === 0) {
+            return res.status(404).json({ message: 'Patient not found' });
+        }
+
+        const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
+        const parsedFee = Number(consultationFee);
+        const finalConsultationFee = consultationFee === undefined || consultationFee === null || consultationFee === ''
+            ? 500
+            : (Number.isFinite(parsedFee) ? parsedFee : 500);
+        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalMedicalBackground = typeof medicalBackground === 'string'
+            ? medicalBackground.trim() || null
+            : medicalBackground ?? null;
+        const visitDateKey = normalizeDateValue(latestVisitDate) || getLocalDateKey();
+        const finalToken = tokenNumber || await getNextTokenForDate(visitDateKey);
+
+        const patientCode = normalizePatientCode(existingRows[0].patientCode);
+        if (!patientCode) {
+            return res.status(400).json({ message: 'Patient ID is missing for this patient' });
+        }
+
+        const [visitRows] = await db.query(
+            'SELECT id FROM patients WHERE patientCode = ? AND latestVisitDate = ? ORDER BY id DESC LIMIT 1',
+            [patientCode, visitDateKey]
+        );
+
+        let visitPatientId;
+        if (visitRows.length > 0) {
+            visitPatientId = visitRows[0].id;
+            await db.query(`
+                UPDATE patients
+                SET name=?, age=?, gender=?, mobile=?, visitReason=?, status='Waiting',
+                    paymentMode=?, tokenNumber=?, consultationFee=?, medicalBackground=?
+                WHERE id=?
+            `, [name, age, gender, finalMobile, visitReason, finalPaymentMode, finalToken, finalConsultationFee, finalMedicalBackground, visitPatientId]);
+        } else {
+            const [result] = await db.query(
+                `
+                INSERT INTO patients
+                    (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee, medicalBackground)
+                VALUES (?, ?, ?, ?, ?, ?, 'Waiting', ?, ?, ?, ?, ?)
+                `,
+                [patientCode, name, age, gender, finalMobile, visitReason, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee, finalMedicalBackground]
+            );
+            visitPatientId = result.insertId;
+        }
+
+        await syncPatientProfileDetails(patientCode, {
+            name,
+            gender,
+            mobile: finalMobile
+        }, visitPatientId);
+
+        res.json({
+            id: visitPatientId,
+            patientCode,
+            tokenNumber: finalToken,
+            latestVisitDate: visitDateKey,
+            message: 'Patient visit registered'
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error registering patient visit' });
     }
 };
 
@@ -355,8 +519,9 @@ exports.updatePatientStatus = async (req, res) => {
 exports.updatePatient = async (req, res) => {
     try {
         console.log("Update Patient Body:", req.body);
-        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode, medicalBackground } = req.body;
+        const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode, medicalBackground, patientCode } = req.body;
         const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
         const finalMedicalBackground = typeof medicalBackground === 'string'
             ? medicalBackground.trim() || null
             : medicalBackground ?? null;
@@ -364,7 +529,15 @@ exports.updatePatient = async (req, res) => {
             UPDATE patients 
             SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, paymentMode=?, consultationFee=?, tokenNumber=?, medicalBackground=?
             WHERE id=?
-        `, [name, age, gender, mobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, finalMedicalBackground, req.params.id]);
+        `, [name, age, gender, finalMobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, finalMedicalBackground, req.params.id]);
+
+        if (patientCode) {
+            await syncPatientProfileDetails(patientCode, {
+                name,
+                gender,
+                mobile: finalMobile
+            }, req.params.id);
+        }
 
         res.json({ message: 'Patient updated successfully' });
     } catch (error) {
@@ -375,7 +548,15 @@ exports.updatePatient = async (req, res) => {
 
 exports.deletePatient = async (req, res) => {
     try {
-        await db.query('DELETE FROM patients WHERE id = ?', [req.params.id]);
+        const visitDate = normalizeDateValue(req.query.date);
+        const [result] = visitDate
+            ? await db.query('DELETE FROM patients WHERE id = ? AND latestVisitDate = ?', [req.params.id, visitDate])
+            : await db.query('DELETE FROM patients WHERE id = ?', [req.params.id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Patient visit not found for selected date' });
+        }
+
         res.json({ message: 'Patient deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting patient' });

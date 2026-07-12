@@ -164,7 +164,11 @@ export class PatientHistoryComponent implements OnInit {
   }
 
   get canExportBackup(): boolean {
-    return this.currentUser?.role === 'admin' || this.currentUser?.role === 'doctor';
+    return this.currentUser?.role === 'doctor';
+  }
+
+  get canExportReport(): boolean {
+    return !!this.currentUser && this.authService.hasTabAccess(this.currentUser.role, 'history');
   }
 
   get canImportSqlBackup(): boolean {
@@ -259,7 +263,7 @@ export class PatientHistoryComponent implements OnInit {
   }
 
   exportGovernmentReport(): void {
-    if (!this.canExportBackup || !this.currentUser) {
+    if (!this.canExportReport || !this.currentUser) {
       return;
     }
 
@@ -283,7 +287,7 @@ export class PatientHistoryComponent implements OnInit {
       paymentModes: this.governmentExportPaymentModes
     };
 
-    this.patientService.exportGovernmentReport(this.currentUser.role, filters).subscribe({
+    this.patientService.exportGovernmentReport(this.currentUser.role, this.currentUser.id, filters).subscribe({
       next: (blob) => {
         this.saveBlob(blob, `ent-clinic-government-report-${range.fromDate}-to-${range.toDate}.xlsx`);
         this.governmentExportMessage = 'Government report downloaded.';

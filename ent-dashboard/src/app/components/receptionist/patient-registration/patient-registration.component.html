@@ -43,11 +43,13 @@
       styleClass="reception-patient-table" class="text-sm">
       <ng-template pTemplate="header">
         <tr>
+          <th>Patient ID</th>
           <th>Token</th>
           <th>Name</th>
           <th>Mobile</th>
           <th>Age</th>
           <th>Gender</th>
+          <th>Last Visit</th>
           <th>Visit Reason</th>
           <th>Consultation Fee</th>
           <th>Payment Mode</th>
@@ -58,6 +60,12 @@
 
       <ng-template pTemplate="body" let-p let-editing="editing" let-ri="rowIndex">
         <tr [pEditableRow]="p" class="cursor-pointer" (click)="onRowClick(p, $event)">
+          <td>
+            <span class="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded">
+              {{ p.patientCode || '-' }}
+            </span>
+          </td>
+
           <td>
             <p-cellEditor>
               <ng-template pTemplate="input">
@@ -88,7 +96,14 @@
           <td>
             <p-cellEditor>
               <ng-template pTemplate="input">
-                <input pInputText [(ngModel)]="p.mobile" class="w-full" />
+                <div class="flex flex-col gap-1">
+                  <input pInputText [(ngModel)]="p.mobile" class="w-full" maxlength="10" inputmode="numeric"
+                    pattern="^[0-9]{10}$"
+                    [ngClass]="{'border-red-500 ring-1 ring-red-200 focus:border-red-500 focus:ring-red-200': !isMobileValid(p.mobile)}" />
+                  <small *ngIf="!isMobileValid(p.mobile)" class="text-red-500 text-[11px] leading-tight">
+                    Enter 10-digit mobile.
+                  </small>
+                </div>
               </ng-template>
               <ng-template pTemplate="output">
                 {{ p.mobile }}
@@ -100,7 +115,13 @@
           <td>
             <p-cellEditor>
               <ng-template pTemplate="input">
-                <input pInputText type="number" [(ngModel)]="p.age" class="w-full" />
+                <div class="flex flex-col gap-1">
+                  <input pInputText type="number" [(ngModel)]="p.age" class="w-full" min="0" max="99"
+                    [ngClass]="{'border-red-500 ring-1 ring-red-200 focus:border-red-500 focus:ring-red-200': !isAgeValid(p.age)}" />
+                  <small *ngIf="!isAgeValid(p.age)" class="text-red-500 text-[11px] leading-tight">
+                    Age below 100.
+                  </small>
+                </div>
               </ng-template>
               <ng-template pTemplate="output">
                 {{ p.age }}
@@ -119,6 +140,13 @@
                 {{ p.gender || '-' }}
               </ng-template>
             </p-cellEditor>
+          </td>
+
+          <!-- Last Visit -->
+          <td>
+            <span class="text-xs font-semibold text-slate-600">
+              {{ p.latestVisitDate ? (p.latestVisitDate | date:'dd MMM yyyy') : '-' }}
+            </span>
           </td>
 
           <!-- Visit Reason -->
@@ -206,6 +234,7 @@
 
               <!-- Save (Visible when editing) -->
               <button *ngIf="editing" pButton pSaveEditableRow icon="pi pi-check" (click)="onRowSave(p)" text rounded
+                [disabled]="!isPatientBasicsValid(p)"
                 severity="success"></button>
 
               <!-- Cancel (Visible when editing) -->
@@ -227,6 +256,14 @@
 
       <form (ngSubmit)="onSubmit()" #patientForm="ngForm" class="flex flex-wrap justify-center items-end gap-4">
 
+        <!-- Patient ID -->
+        <div class="flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-1">Patient ID</label>
+          <input type="text" [(ngModel)]="patient.patientCode" name="patientCode" placeholder="Auto"
+            class="w-36 rounded-lg border-gray-300 bg-gray-50 text-blue-700 font-mono focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition"
+            readonly />
+        </div>
+
         <!-- Token Number -->
         <div class="flex flex-col">
           <label class="text-sm font-medium text-gray-700 mb-1">Token</label>
@@ -247,14 +284,20 @@
         <div class="flex flex-col">
           <label class="text-sm font-medium text-gray-700 mb-1">Mobile</label>
           <input type="text" [(ngModel)]="patient.mobile" name="mobile" placeholder="Mobile (optional)"
+            maxlength="10" inputmode="numeric" pattern="^[0-9]{10}$" #mobileInput="ngModel"
             class="w-40 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+          <small *ngIf="mobileInput.invalid && (mobileInput.dirty || mobileInput.touched)"
+            class="text-red-500 text-xs">Enter 10-digit mobile.</small>
         </div>
 
         <!-- Age -->
         <div class="flex flex-col">
           <label class="text-sm font-medium text-gray-700 mb-1">Age</label>
-          <input type="number" [(ngModel)]="patient.age" name="age" placeholder="Age"
+          <input type="number" [(ngModel)]="patient.age" name="age" placeholder="Age" min="0" max="99"
+            #ageInput="ngModel"
             class="w-20 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
+          <small *ngIf="ageInput.invalid && (ageInput.dirty || ageInput.touched)"
+            class="text-red-500 text-xs">Age should be below 100.</small>
         </div>
 
         <!-- Gender -->
@@ -301,7 +344,8 @@
 
         <!-- Buttons -->
         <div class="flex items-center gap-2 mt-2">
-          <button type="submit" [disabled]="!patientForm.valid" pButton icon="pi pi-user-plus" label="Add"
+          <button type="submit" [disabled]="!patientForm.valid" pButton icon="pi pi-user-plus"
+            [label]="patient.id && patient.id > 0 ? 'Save Visit' : 'Add'"
             class="p-button-success"></button>
 
           <button type="button" (click)="toggleAddForm()" pButton icon="pi pi-times" label="Cancel"
@@ -321,10 +365,23 @@
 
     <!-- ADD NEW PATIENT SECTION -->
     <div class="border-t border-blue-200 pt-4 mt-6">
+      <div class="mb-3 flex justify-end">
+        <div class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-right text-xs text-slate-600">
+          <span class="font-semibold uppercase tracking-wide text-slate-500">Doctor</span>
+          <span class="ml-2 font-bold text-blue-700">{{ assignedDoctorName }}</span>
+          <span class="ml-3 font-semibold text-slate-500">Default Fee:</span>
+          <span class="font-bold text-slate-800">{{ defaultConsultationFee | currency:'INR':'symbol':'1.0-0' }}</span>
+        </div>
+      </div>
+
       <!-- Show button only when form is hidden -->
-      <div *ngIf="!showAddForm" class="text-center">
+      <div *ngIf="!showAddForm" class="flex flex-wrap items-center justify-center gap-2">
+        <input type="text" [(ngModel)]="patientCodeLookup" name="patientCodeLookup"
+          placeholder="Patient ID"
+          class="w-40 rounded-lg border-gray-300 px-3 py-2 font-mono text-sm uppercase focus:border-blue-500 focus:ring focus:ring-blue-100" />
         <button pButton icon="pi pi-user-plus" label="Add New Patient" class="p-button-info p-button-rounded"
-          (click)="toggleAddForm()"></button>
+          [disabled]="loadingPatientCode"
+          (click)="openAddPatient()"></button>
       </div>
     </div>
 

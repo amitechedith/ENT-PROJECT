@@ -17,6 +17,7 @@ const SQL_TABLES = [
     { name: 'medicines', orderBy: ['id'] },
     { name: 'diagnoses', orderBy: ['id'] },
     { name: 'dosages', orderBy: ['id'] },
+    { name: 'role_access_controls', orderBy: ['doctorId', 'targetRole', 'tabKey'] },
     { name: 'prescriptions', orderBy: ['id'] },
     { name: 'prescription_medicines', orderBy: ['id'] },
     { name: 'patient_diagnoses', orderBy: ['patientId', 'diagnosisName'] },
@@ -88,12 +89,14 @@ const MASTER_COLUMNS = {
         { header: 'Full Name', key: 'fullName', width: 24 },
         { header: 'Mobile', key: 'mobile', width: 16 },
         { header: 'Role', key: 'role', width: 14 },
+        { header: 'Assigned Doctor ID', key: 'assignedDoctorId', width: 18 },
         { header: 'Doctor Title', key: 'doctorTitle', width: 24 },
         { header: 'Registration Number', key: 'doctorRegistrationNumber', width: 24 },
         { header: 'Clinic Address', key: 'doctorClinicAddress', width: 36 },
         { header: 'Clinic Phone', key: 'doctorClinicPhone', width: 18 },
         { header: 'Email', key: 'doctorEmail', width: 28 },
         { header: 'Timings', key: 'doctorTimings', width: 22 },
+        { header: 'Default Fee', key: 'defaultConsultationFee', width: 14 },
         { header: 'Updated At', key: 'updatedAt', width: 22 }
     ],
     simpleMaster: [
@@ -116,6 +119,10 @@ const getRequesterRole = (req) => {
     return String(req.headers['x-user-role'] || req.body?.role || req.query?.role || '').toLowerCase();
 };
 
+const getRequesterUserId = (req) => {
+    return String(req.headers['x-user-id'] || req.body?.userId || req.query?.userId || '');
+};
+
 const assertCanExport = (req, res) => {
     const role = getRequesterRole(req);
     if (!['admin', 'doctor'].includes(role)) {
@@ -124,6 +131,42 @@ const assertCanExport = (req, res) => {
     }
 
     return true;
+};
+
+const assertCanGovernmentReportExport = async (req, res) => {
+    const role = getRequesterRole(req);
+    if (['admin', 'doctor'].includes(role)) {
+        return true;
+    }
+
+    if (['receptionist', 'billing'].includes(role)) {
+        const userId = getRequesterUserId(req);
+        if (!userId) {
+            res.status(403).json({ message: 'History export access is not enabled for this role' });
+            return false;
+        }
+
+        const [rows] = await db.query(
+            `
+            SELECT rac.isAllowed
+            FROM users u
+            INNER JOIN role_access_controls rac
+                ON rac.doctorId = u.assignedDoctorId
+               AND rac.targetRole = u.role
+               AND rac.tabKey = 'history'
+            WHERE u.id = ? AND u.role = ?
+            LIMIT 1
+            `,
+            [userId, role]
+        );
+
+        if (rows[0]?.isAllowed) {
+            return true;
+        }
+    }
+
+    res.status(403).json({ message: 'History export access is not enabled for this role' });
+    return false;
 };
 
 const assertCanImport = (req, res) => {
@@ -534,9 +577,9 @@ const getVisitRowsForDate = async (date) => {
 
 const getUsers = async () => {
     const [rows] = await db.query(`
-        SELECT id, username, fullName, mobile, role,
+        SELECT id, username, fullName, mobile, role, assignedDoctorId,
                doctorTitle, doctorRegistrationNumber, doctorClinicAddress,
-               doctorClinicPhone, doctorEmail, doctorTimings, updatedAt
+               doctorClinicPhone, doctorEmail, doctorTimings, defaultConsultationFee, updatedAt
         FROM users
         ORDER BY role, fullName
     `);
@@ -731,7 +774,7 @@ const insertExportRun = async (status, filePath, affectedDates, refreshedSheets,
 };
 
 exports.exportGovernmentReport = async (req, res) => {
-    if (!assertCanExport(req, res)) {
+    if (!await assertCanGovernmentReportExport(req, res)) {
         return;
     }
 

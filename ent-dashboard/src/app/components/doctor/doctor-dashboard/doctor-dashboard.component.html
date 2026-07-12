@@ -274,7 +274,7 @@
                             placeholder="Select or Type Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(dosageAuto)"
                             (onFocus)="openDosageDropdown(dosageAuto)"
-                            (onSelect)="onDosageSelect($event)">
+                            (onSelect)="onDosageSelect($event, dosageAuto)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
                                 <span class="truncate">{{ item }}</span>
@@ -335,7 +335,7 @@
                             placeholder="Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(newDosageAuto)"
                             (onFocus)="openDosageDropdown(newDosageAuto)"
-                            (onSelect)="onDosageSelect($event)">
+                            (onSelect)="onDosageSelect($event, newDosageAuto)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
                                 <span class="truncate">{{ item }}</span>
