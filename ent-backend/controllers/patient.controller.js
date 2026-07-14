@@ -30,6 +30,22 @@ function normalizePatientCode(value) {
     return typeof value === 'string' ? value.trim().toUpperCase() : '';
 }
 
+function getRequesterRole(req) {
+    return String(req.headers['x-user-role'] || req.body?.role || req.query?.role || '').toLowerCase();
+}
+
+function normalizePatientStatus(status, fallback = 'Waiting') {
+    return ['Waiting', 'In Consultation', 'Payment Done', 'Exited'].includes(status) ? status : fallback;
+}
+
+function normalizePaymentModeForStatus(status, paymentMode) {
+    if (status === 'Exited') {
+        return null;
+    }
+
+    return paymentMode === 'Cash' ? 'Cash' : 'QR';
+}
+
 async function generatePatientCode(visitDateKey = getLocalDateKey()) {
     const datePart = visitDateKey.slice(0, 7).replace('-', '');
 
@@ -104,7 +120,7 @@ exports.getPatients = async (req, res) => {
         for (let p of patients) {
             const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [p.id]);
             p.currentDiagnosis = diags.map(d => d.diagnosisName);
-            p.paymentMode = p.paymentMode || 'QR';
+            p.paymentMode = p.status === 'Exited' ? null : (p.paymentMode || 'QR');
             // also fake prescriptions empty array for existing frontend compatibility if needed
             // p.prescriptions = []; 
         }
@@ -145,7 +161,7 @@ exports.getPatientById = async (req, res) => {
         const patient = normalizePatientDates(rows[0]);
         const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
         patient.currentDiagnosis = diags.map(d => d.diagnosisName);
-        patient.paymentMode = patient.paymentMode || 'QR';
+        patient.paymentMode = patient.status === 'Exited' ? null : (patient.paymentMode || 'QR');
 
         res.json(patient);
     } catch (error) {
@@ -175,7 +191,7 @@ exports.getPatientByCode = async (req, res) => {
         const patient = normalizePatientDates(rows[0]);
         const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
         patient.currentDiagnosis = diags.map(d => d.diagnosisName);
-        patient.paymentMode = patient.paymentMode || 'QR';
+        patient.paymentMode = patient.status === 'Exited' ? null : (patient.paymentMode || 'QR');
 
         res.json(patient);
     } catch (error) {
@@ -273,7 +289,7 @@ exports.getPatientVisitHistory = async (req, res) => {
 
         for (const row of patients) {
             const patient = normalizePatientDates(row);
-            patient.paymentMode = patient.paymentMode || 'QR';
+            patient.paymentMode = patient.status === 'Exited' ? null : (patient.paymentMode || 'QR');
 
             const [diagnosisRows] = await db.query(
                 'SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ? ORDER BY diagnosisName',
@@ -322,7 +338,7 @@ exports.getPatientVisitHistory = async (req, res) => {
                     date,
                     visitReason: patient.visitReason || '',
                     status: patient.status || 'Waiting',
-                    paymentMode: patient.paymentMode || 'QR',
+                    paymentMode: patient.status === 'Exited' ? null : (patient.paymentMode || 'QR'),
                     consultationFee: Number(patient.consultationFee) || 0,
                     tokenNumber: patient.tokenNumber || null,
                     diagnoses,
@@ -406,7 +422,7 @@ exports.getNextToken = async (req, res) => {
 
 exports.createPatient = async (req, res) => {
     try {
-        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, latestVisitDate } = req.body;
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, latestVisitDate, status } = req.body;
         console.log("Create Patient Body:", req.body);
 
         const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
@@ -414,7 +430,8 @@ exports.createPatient = async (req, res) => {
         const finalConsultationFee = consultationFee === undefined || consultationFee === null || consultationFee === ''
             ? 500
             : (Number.isFinite(parsedFee) ? parsedFee : 500);
-        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalStatus = normalizePatientStatus(status);
+        const finalPaymentMode = normalizePaymentModeForStatus(finalStatus, paymentMode);
 
         let finalToken = tokenNumber;
         const visitDateKey = normalizeDateValue(latestVisitDate) || getLocalDateKey();
@@ -424,8 +441,8 @@ exports.createPatient = async (req, res) => {
         const patientCode = await generatePatientCode(visitDateKey);
 
         const [result] = await db.query(
-            'INSERT INTO patients (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, ?, "Waiting", ?, ?, ?, ?)',
-            [patientCode, name, age, gender, finalMobile, visitReason, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee]
+            'INSERT INTO patients (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [patientCode, name, age, gender, finalMobile, visitReason, finalStatus, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee]
         );
         res.json({ id: result.insertId, patientCode, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {
@@ -437,7 +454,7 @@ exports.createPatient = async (req, res) => {
 exports.registerPatientVisit = async (req, res) => {
     try {
         console.log("Register Visit Body:", req.body);
-        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, medicalBackground, latestVisitDate } = req.body;
+        const { name, age, gender, mobile, visitReason, consultationFee, tokenNumber, paymentMode, medicalBackground, latestVisitDate, status } = req.body;
 
         const [existingRows] = await db.query('SELECT * FROM patients WHERE id = ?', [req.params.id]);
         if (existingRows.length === 0) {
@@ -449,7 +466,8 @@ exports.registerPatientVisit = async (req, res) => {
         const finalConsultationFee = consultationFee === undefined || consultationFee === null || consultationFee === ''
             ? 500
             : (Number.isFinite(parsedFee) ? parsedFee : 500);
-        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalStatus = normalizePatientStatus(status);
+        const finalPaymentMode = normalizePaymentModeForStatus(finalStatus, paymentMode);
         const finalMedicalBackground = typeof medicalBackground === 'string'
             ? medicalBackground.trim() || null
             : medicalBackground ?? null;
@@ -471,18 +489,18 @@ exports.registerPatientVisit = async (req, res) => {
             visitPatientId = visitRows[0].id;
             await db.query(`
                 UPDATE patients
-                SET name=?, age=?, gender=?, mobile=?, visitReason=?, status='Waiting',
+                SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?,
                     paymentMode=?, tokenNumber=?, consultationFee=?, medicalBackground=?
                 WHERE id=?
-            `, [name, age, gender, finalMobile, visitReason, finalPaymentMode, finalToken, finalConsultationFee, finalMedicalBackground, visitPatientId]);
+            `, [name, age, gender, finalMobile, visitReason, finalStatus, finalPaymentMode, finalToken, finalConsultationFee, finalMedicalBackground, visitPatientId]);
         } else {
             const [result] = await db.query(
                 `
                 INSERT INTO patients
                     (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee, medicalBackground)
-                VALUES (?, ?, ?, ?, ?, ?, 'Waiting', ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `,
-                [patientCode, name, age, gender, finalMobile, visitReason, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee, finalMedicalBackground]
+                [patientCode, name, age, gender, finalMobile, visitReason, finalStatus, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee, finalMedicalBackground]
             );
             visitPatientId = result.insertId;
         }
@@ -509,7 +527,9 @@ exports.registerPatientVisit = async (req, res) => {
 exports.updatePatientStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        await db.query('UPDATE patients SET status = ? WHERE id = ?', [status, req.params.id]);
+        const finalStatus = normalizePatientStatus(status);
+        const paymentUpdate = finalStatus === 'Exited' ? ', paymentMode = NULL' : '';
+        await db.query(`UPDATE patients SET status = ?${paymentUpdate} WHERE id = ?`, [finalStatus, req.params.id]);
         res.json({ message: 'Status updated' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating status' });
@@ -520,7 +540,8 @@ exports.updatePatient = async (req, res) => {
     try {
         console.log("Update Patient Body:", req.body);
         const { name, age, gender, mobile, visitReason, status, consultationFee, tokenNumber, paymentMode, medicalBackground, patientCode } = req.body;
-        const finalPaymentMode = paymentMode === 'Cash' ? 'Cash' : 'QR';
+        const finalStatus = normalizePatientStatus(status);
+        const finalPaymentMode = normalizePaymentModeForStatus(finalStatus, paymentMode);
         const finalMobile = typeof mobile === 'string' ? mobile.trim() || null : mobile ?? null;
         const finalMedicalBackground = typeof medicalBackground === 'string'
             ? medicalBackground.trim() || null
@@ -529,7 +550,7 @@ exports.updatePatient = async (req, res) => {
             UPDATE patients 
             SET name=?, age=?, gender=?, mobile=?, visitReason=?, status=?, paymentMode=?, consultationFee=?, tokenNumber=?, medicalBackground=?
             WHERE id=?
-        `, [name, age, gender, finalMobile, visitReason, status, finalPaymentMode, consultationFee, tokenNumber, finalMedicalBackground, req.params.id]);
+        `, [name, age, gender, finalMobile, visitReason, finalStatus, finalPaymentMode, consultationFee, tokenNumber, finalMedicalBackground, req.params.id]);
 
         if (patientCode) {
             await syncPatientProfileDetails(patientCode, {
@@ -548,6 +569,11 @@ exports.updatePatient = async (req, res) => {
 
 exports.deletePatient = async (req, res) => {
     try {
+        const requesterRole = getRequesterRole(req);
+        if (!['admin', 'doctor'].includes(requesterRole)) {
+            return res.status(403).json({ message: 'Only doctor or admin can delete patient records' });
+        }
+
         const visitDate = normalizeDateValue(req.query.date);
         const [result] = visitDate
             ? await db.query('DELETE FROM patients WHERE id = ? AND latestVisitDate = ?', [req.params.id, visitDate])

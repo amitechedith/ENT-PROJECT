@@ -174,8 +174,11 @@ export class PatientService {
     return this.http.put(`${this.apiUrl}/${patient.id}`, patient);
   }
 
-  deletePatient(id: number, date?: string): Observable<any> {
-    const options = date ? { params: new HttpParams().set('date', date) } : {};
+  deletePatient(id: number, date?: string, role?: string): Observable<any> {
+    const options = {
+      params: date ? new HttpParams().set('date', date) : undefined,
+      headers: role ? new HttpHeaders().set('x-user-role', role) : undefined
+    };
     return this.http.delete(`${this.apiUrl}/${id}`, options);
   }
 

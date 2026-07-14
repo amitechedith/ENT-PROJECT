@@ -211,7 +211,7 @@
                     {{ visit.status || 'Waiting' }}
                   </span>
                   <span class="rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="getPaymentClass(visit.paymentMode)">
-                    {{ visit.paymentMode || 'QR' }}
+                    {{ visit.paymentMode || '-' }}
                   </span>
                 </div>
               </div>

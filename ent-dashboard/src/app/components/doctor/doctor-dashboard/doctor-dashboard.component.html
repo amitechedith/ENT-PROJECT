@@ -54,7 +54,8 @@
             <span [ngClass]="{
                 'bg-yellow-100 text-yellow-800': p.status === 'Waiting',
                 'bg-green-100 text-green-800': p.status === 'In Consultation',
-                'bg-gray-100 text-gray-800': p.status === 'Payment Done'
+                'bg-gray-100 text-gray-800': p.status === 'Payment Done',
+                'bg-red-100 text-red-700': p.status === 'Exited'
               }" class="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide">
               {{ p.status || 'Waiting' }}
             </span>

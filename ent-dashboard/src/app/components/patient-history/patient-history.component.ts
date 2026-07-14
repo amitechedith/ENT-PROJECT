@@ -197,6 +197,10 @@ export class PatientHistoryComponent implements OnInit {
   }
 
   getStatusClass(status?: string | null): string {
+    if (status === 'Exited') {
+      return 'bg-red-100 text-red-700 border-red-200';
+    }
+
     if (status === 'Payment Done') {
       return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     }
@@ -209,6 +213,10 @@ export class PatientHistoryComponent implements OnInit {
   }
 
   getPaymentClass(paymentMode?: string | null): string {
+    if (!paymentMode) {
+      return 'bg-slate-100 text-slate-500';
+    }
+
     return paymentMode === 'Cash'
       ? 'bg-orange-100 text-orange-700'
       : 'bg-sky-100 text-sky-700';

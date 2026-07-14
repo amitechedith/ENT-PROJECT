@@ -178,14 +178,11 @@
             <p-cellEditor>
               <ng-template pTemplate="input">
                 <p-dropdown [options]="paymentModeOptions" [(ngModel)]="p.paymentMode" optionLabel="label"
-                  optionValue="value" appendTo="body" class="w-full"></p-dropdown>
+                  optionValue="value" appendTo="body" class="w-full" [disabled]="p.status === 'Exited'"></p-dropdown>
               </ng-template>
               <ng-template pTemplate="output">
-                <span [ngClass]="{
-                  'bg-blue-100 text-blue-800': (p.paymentMode || 'QR') === 'QR',
-                  'bg-orange-100 text-orange-800': p.paymentMode === 'Cash'
-                }" class="px-2 py-1 rounded-full text-xs font-medium">
-                  {{ p.paymentMode || 'QR' }}
+                <span [ngClass]="getPaymentModeClass(p)" class="px-2 py-1 rounded-full text-xs font-medium">
+                  {{ getPaymentModeLabel(p) }}
                 </span>
               </ng-template>
             </p-cellEditor>
@@ -196,14 +193,15 @@
             <p-cellEditor>
               <ng-template pTemplate="input">
                 <p-dropdown [options]="statusOptions" [(ngModel)]="p.status" optionLabel="label" optionValue="value"
-                  appendTo="body" class="w-full"></p-dropdown>
+                  appendTo="body" class="w-full" (onChange)="onStatusChange(p)"></p-dropdown>
               </ng-template>
 
               <ng-template pTemplate="output">
                 <span [ngClass]="{
                 'bg-yellow-100 text-yellow-800': p.status === 'Waiting',
                 'bg-green-100 text-green-800': p.status === 'In Consultation',
-                'bg-gray-100 text-gray-800': p.status === 'Payment Done'
+                'bg-gray-100 text-gray-800': p.status === 'Payment Done',
+                'bg-red-100 text-red-700': p.status === 'Exited'
               }" class="px-2 py-1 rounded-full text-xs font-medium">
                   {{ p.status }}
                 </span>
@@ -222,7 +220,7 @@
 
               <!-- Payment Button -->
               <button *ngIf="!editing" pButton icon="pi pi-wallet"
-                class="p-button-text p-button-rounded p-button-success" [disabled]="p.status === 'Payment Done'"
+                class="p-button-text p-button-rounded p-button-success" [disabled]="p.status === 'Payment Done' || p.status === 'Exited'"
                 pTooltip="Confirm Payment" tooltipPosition="top" (click)="confirmPayment(p)"></button>
 
               <!-- 3 DOTS MENU (Visible when NOT editing) -->
@@ -330,7 +328,8 @@
         <div class="flex flex-col">
           <label class="text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
           <p-dropdown [options]="paymentModeOptions" [(ngModel)]="patient.paymentMode" name="paymentMode"
-            optionLabel="label" optionValue="value" placeholder="Select mode" class="w-full rounded-lg shadow-sm">
+            optionLabel="label" optionValue="value" placeholder="Select mode" class="w-full rounded-lg shadow-sm"
+            [disabled]="patient.status === 'Exited'">
           </p-dropdown>
         </div>
 
@@ -339,7 +338,8 @@
           <label class="text-sm font-medium text-gray-700 mb-1">Status</label>
 
           <p-dropdown [options]="statusOptions" [(ngModel)]="patient.status" name="status" optionLabel="label"
-            optionValue="value" placeholder="Select status" class="w-full rounded-lg shadow-sm"></p-dropdown>
+            optionValue="value" placeholder="Select status" class="w-full rounded-lg shadow-sm"
+            (onChange)="onStatusChange(patient)"></p-dropdown>
         </div>
 
         <!-- Buttons -->

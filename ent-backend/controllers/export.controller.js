@@ -659,7 +659,11 @@ const getGovernmentReportPatientRows = async (fromDate, toDate, paymentModes) =>
             DATE_FORMAT(p.latestVisitDate, '%Y-%m-%d') AS visitDate,
             p.visitReason,
             p.status,
-            CASE WHEN p.paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END AS paymentMode,
+            CASE
+                WHEN p.paymentMode = 'Cash' THEN 'Cash'
+                WHEN p.paymentMode = 'QR' THEN 'QR'
+                ELSE NULL
+            END AS paymentMode,
             p.consultationFee,
             COALESCE(d.diagnoses, '') AS diagnoses,
             p.medicalBackground
@@ -670,7 +674,11 @@ const getGovernmentReportPatientRows = async (fromDate, toDate, paymentModes) =>
             GROUP BY patientId
         ) d ON d.patientId = p.id
         WHERE DATE(p.latestVisitDate) BETWEEN ? AND ?
-          AND (CASE WHEN p.paymentMode = 'Cash' THEN 'Cash' ELSE 'QR' END) IN (${paymentModePlaceholders})
+          AND (CASE
+                WHEN p.paymentMode = 'Cash' THEN 'Cash'
+                WHEN p.paymentMode = 'QR' THEN 'QR'
+                ELSE NULL
+              END) IN (${paymentModePlaceholders})
         ORDER BY p.latestVisitDate ASC, COALESCE(p.tokenNumber, 999999), p.name
         `,
         [fromDate, toDate, ...paymentModes]

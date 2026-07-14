@@ -197,7 +197,8 @@ const createTables = async () => {
         `);
         await ensureColumn(connection, 'patients', 'tokenNumber', "INT DEFAULT 0 AFTER latestVisitDate");
         await ensureColumn(connection, 'patients', 'patientCode', "VARCHAR(30) NULL AFTER id");
-        await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NOT NULL DEFAULT 'QR' AFTER consultationFee");
+        await ensureColumn(connection, 'patients', 'paymentMode', "VARCHAR(20) NULL DEFAULT NULL AFTER consultationFee");
+        await connection.query("ALTER TABLE patients MODIFY COLUMN paymentMode VARCHAR(20) NULL DEFAULT NULL");
         await ensureUpdatedAt(connection, 'patients');
         await connection.query(`
             UPDATE patients

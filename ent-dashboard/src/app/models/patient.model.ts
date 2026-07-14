@@ -9,7 +9,7 @@ export interface Patient {
   age?: number;
   visitReason?: string;
   status?: string;
-  paymentMode?: 'Cash' | 'QR';
+  paymentMode?: 'Cash' | 'QR' | null;
   currentDiagnosis?: string[];
   medicalBackground?: string;
   latestVisitDate?: string;

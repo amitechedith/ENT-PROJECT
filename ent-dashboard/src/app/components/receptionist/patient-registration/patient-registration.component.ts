@@ -68,7 +68,8 @@ export class PatientRegistrationComponent implements OnInit {
   statusOptions = [
     { label: 'Waiting', value: 'Waiting' },
     { label: 'In Consultation', value: 'In Consultation' },
-    { label: 'Payment Done', value: 'Payment Done' }
+    { label: 'Payment Done', value: 'Payment Done' },
+    { label: 'Exited', value: 'Exited' }
   ];
 
   paymentModeOptions = [
@@ -275,7 +276,7 @@ export class PatientRegistrationComponent implements OnInit {
       next: (patients: Patient[]) => {
         this.patients = patients.map(patient => ({
           ...patient,
-          paymentMode: patient.paymentMode || 'QR'
+          paymentMode: patient.status === 'Exited' ? null : (patient.paymentMode || 'QR')
         }));
         this.ensureSelectedDateSummary();
       },
@@ -338,13 +339,12 @@ export class PatientRegistrationComponent implements OnInit {
     const isToday = this.isToday(this.selectedDate);
     const isPaid = patient.status === 'Payment Done';
 
-    // Get current user role
     const user = this.authService.currentUserValue;
     const isRestricted = user?.role === 'receptionist';
+    const canDelete = user?.role === 'admin' || user?.role === 'doctor';
 
     // If restricted (receptionist), follow rules. Else (Admin/Doctor), allow all.
     const canEdit = !isRestricted || (isToday && !isPaid);
-    const canDelete = !isRestricted || !isPaid;
 
     this.menuItems = [
       {
@@ -352,14 +352,16 @@ export class PatientRegistrationComponent implements OnInit {
         icon: 'pi pi-pencil',
         disabled: !canEdit,
         command: () => this.initEdit(patient)
-      },
-      {
-        label: 'Delete',
-        icon: 'pi pi-trash',
-        disabled: !canDelete,
-        command: () => this.confirmDelete(patient)
       }
     ];
+
+    if (canDelete) {
+      this.menuItems.push({
+        label: 'Delete',
+        icon: 'pi pi-trash',
+        command: () => this.confirmDelete(patient)
+      });
+    }
 
     menu.toggle(event);
   }
@@ -416,6 +418,33 @@ export class PatientRegistrationComponent implements OnInit {
     return paymentMode === 'Cash' ? 'Cash' : 'QR';
   }
 
+  onStatusChange(patient: Patient): void {
+    if (patient.status === 'Exited') {
+      patient.paymentMode = null;
+      return;
+    }
+
+    if (!patient.paymentMode) {
+      patient.paymentMode = 'QR';
+    }
+  }
+
+  getPaymentModeLabel(patient: Patient): string {
+    if (patient.status === 'Exited' || !patient.paymentMode) {
+      return '-';
+    }
+
+    return patient.paymentMode;
+  }
+
+  getPaymentModeClass(patient: Patient): Record<string, boolean> {
+    return {
+      'bg-blue-100 text-blue-800': patient.paymentMode === 'QR' && patient.status !== 'Exited',
+      'bg-orange-100 text-orange-800': patient.paymentMode === 'Cash' && patient.status !== 'Exited',
+      'bg-slate-100 text-slate-500': patient.status === 'Exited' || !patient.paymentMode
+    };
+  }
+
   private isValidMobile(mobile?: string | null): boolean {
     const value = String(mobile || '').trim();
     return !value || /^[0-9]{10}$/.test(value);
@@ -469,6 +498,7 @@ export class PatientRegistrationComponent implements OnInit {
       return;
     }
 
+    this.onStatusChange(this.patient);
     this.patient.latestVisitDate = this.getSelectedDateKey();
 
     const saveRequest = this.patient.id && this.patient.id > 0
@@ -515,6 +545,7 @@ export class PatientRegistrationComponent implements OnInit {
       return;
     }
 
+    this.onStatusChange(p);
     if (p.id) {
         this.patientService.updatePatient(p).subscribe({
         next: () => {
@@ -533,7 +564,8 @@ export class PatientRegistrationComponent implements OnInit {
   }
 
   deletePatient(patient: Patient) {
-    this.patientService.deletePatient(patient.id!, this.getSelectedDateKey()).subscribe({
+    const role = this.authService.currentUserValue?.role;
+    this.patientService.deletePatient(patient.id!, this.getSelectedDateKey(), role).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'info',
@@ -550,6 +582,15 @@ export class PatientRegistrationComponent implements OnInit {
   }
 
   confirmPayment(patient: Patient) {
+    if (patient.status === 'Exited') {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Patient Exited',
+        detail: 'Exited patients cannot be marked as paid.'
+      });
+      return;
+    }
+
     this.confirmationService.confirm({
       message: `Confirm payment for ${patient.name}? This will update status to 'Payment Done'.`,
       header: 'Confirm Payment',
