@@ -232,8 +232,24 @@ export class BillingPageComponent implements OnInit {
             <title>Print Prescription</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
+              * { box-sizing: border-box; }
+              html, body { margin: 0; padding: 0; background: white; }
+              img { max-width: 100%; height: auto; }
+              #billing-container {
+                width: 100% !important;
+                max-width: none !important;
+                min-height: auto !important;
+                padding: 0 !important;
+                border: 0 !important;
+                box-shadow: none !important;
+              }
+              .prescription-logo {
+                width: 72px !important;
+                height: 72px !important;
+                object-fit: contain !important;
+              }
               @media print {
-                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 @page { size: A4; margin: 0; }
               }
               /* Ensure A4 dimensions for preview in popup */
@@ -241,7 +257,7 @@ export class BillingPageComponent implements OnInit {
                 width: 210mm;
                 min-height: 297mm;
                 padding: 20mm;
-                margin: auto;
+                margin: 0 auto;
                 background: white;
               }
             </style>
@@ -255,11 +271,21 @@ export class BillingPageComponent implements OnInit {
                const btns = document.querySelectorAll('button');
                btns.forEach(btn => btn.remove());
                
-               // Wait for styles/images to load then print
-               setTimeout(() => {
-                 window.print();
-                 window.close();
-               }, 500);
+               // Wait for images to resolve so Windows print preview does not use natural image sizes.
+               Promise.all(Array.from(document.images).map((img) => {
+                 if (img.complete) {
+                   return Promise.resolve();
+                 }
+                 return new Promise((resolve) => {
+                   img.onload = resolve;
+                   img.onerror = resolve;
+                 });
+               })).then(() => {
+                 setTimeout(() => {
+                   window.print();
+                   window.close();
+                 }, 300);
+               });
             </script>
           </body>
         </html>
