@@ -244,9 +244,36 @@ export class BillingPageComponent implements OnInit {
                 box-shadow: none !important;
               }
               .prescription-logo {
-                width: 72px !important;
-                height: 72px !important;
+                width: 88px !important;
+                height: 88px !important;
                 object-fit: contain !important;
+              }
+              .prescription-header { margin-bottom: 0 !important; }
+              .prescription-patient {
+                margin-top: 14px !important;
+                font-size: 13px !important;
+                line-height: 1.35 !important;
+              }
+              .prescription-content {
+                margin-top: 14px !important;
+                row-gap: 10px !important;
+              }
+              .medicine-table {
+                font-size: 12px !important;
+                line-height: 1.3 !important;
+                border-collapse: collapse !important;
+              }
+              .medicine-table th,
+              .medicine-table td {
+                padding: 5px 8px !important;
+              }
+              .prescription-advice {
+                margin-top: 12px !important;
+                padding-top: 6px !important;
+              }
+              .prescription-advice p {
+                font-size: 12px !important;
+                line-height: 1.5 !important;
               }
               @media print {
                 body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -256,7 +283,7 @@ export class BillingPageComponent implements OnInit {
               .print-container {
                 width: 210mm;
                 min-height: 297mm;
-                padding: 20mm;
+                padding: 14mm 16mm;
                 margin: 0 auto;
                 background: white;
               }
