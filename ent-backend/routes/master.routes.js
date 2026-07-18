@@ -3,6 +3,8 @@ const router = express.Router();
 const masterController = require('../controllers/master.controller');
 
 router.get('/medicines', masterController.getMedicines);
+router.get('/medicines/export', masterController.exportMedicinesExcel);
+router.post('/medicines/import', masterController.importMedicinesExcel);
 router.post('/medicines', masterController.addMedicine);
 router.delete('/medicines', masterController.deleteMedicine);
 

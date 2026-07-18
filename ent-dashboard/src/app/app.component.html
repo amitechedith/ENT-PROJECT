@@ -34,6 +34,11 @@
           History
         </a>
 
+        <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/data-entry"
+          routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
+          Data Entry
+        </a>
+
         <a *ngIf="['admin', 'doctor'].includes(user.role)" routerLink="/admin"
           routerLinkActive="bg-blue-600 text-white shadow-sm" class="inline-flex h-9 items-center rounded-md px-3 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition">
           Admin

@@ -1,4 +1,15 @@
 const db = require('../config/db.config');
+const ExcelJS = require('exceljs');
+
+const assertDataEntryAccess = (req) => {
+    const role = String(req.headers['x-user-role'] || req.body?.role || req.query?.role || '').toLowerCase();
+
+    if (!['admin', 'doctor'].includes(role)) {
+        const error = new Error('Only admin and doctor users can manage medicine data');
+        error.statusCode = 403;
+        throw error;
+    }
+};
 
 const normalizeMasterName = (value) => {
     if (typeof value !== 'string') {
@@ -43,6 +54,18 @@ const deleteMasterItemByName = async (tableName, name) => {
     return { name: normalizedName };
 };
 
+const findMedicineWorksheet = (workbook) => {
+    return workbook.worksheets.find(sheet => sheet.name.toLowerCase().includes('medicine')) || workbook.worksheets[0];
+};
+
+const getMedicineNameColumnIndex = (worksheet) => {
+    const allowedHeaders = new Set(['name', 'medicine', 'medicine name', 'medicines', 'medicine master']);
+    const headerValues = Array.isArray(worksheet.getRow(1).values) ? worksheet.getRow(1).values : [];
+    const index = headerValues.findIndex(value => allowedHeaders.has(String(value || '').trim().toLowerCase()));
+
+    return index > -1 ? index : 1;
+};
+
 const assertMasterItemNotInUse = async (type, name) => {
     const normalizedName = normalizeMasterName(name);
     let count = 0;
@@ -77,7 +100,8 @@ const assertMasterItemNotInUse = async (type, name) => {
     }
 
     if (count > 0) {
-        const error = new Error(`This ${type} is already used and cannot be deleted`);
+        const displayType = type.charAt(0).toUpperCase() + type.slice(1);
+        const error = new Error(`${displayType} is in use and cannot be deleted`);
         error.statusCode = 409;
         throw error;
     }
@@ -89,6 +113,106 @@ exports.getMedicines = async (req, res) => {
         res.json(meds);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching medicines' });
+    }
+};
+
+exports.exportMedicinesExcel = async (req, res) => {
+    try {
+        assertDataEntryAccess(req);
+
+        const [medicines] = await db.query('SELECT id, name, updatedAt FROM medicines ORDER BY name');
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'ENT Clinic Management';
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        const worksheet = workbook.addWorksheet('Medicines');
+        worksheet.columns = [
+            { header: 'ID', key: 'id', width: 12 },
+            { header: 'Name', key: 'name', width: 40 },
+            { header: 'Updated At', key: 'updatedAt', width: 24 }
+        ];
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.addRows(medicines);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="ent-clinic-medicines.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Error exporting medicines:', error);
+        res.status(error.statusCode || 500).json({ message: 'Error exporting medicines', error: error.message });
+    }
+};
+
+exports.importMedicinesExcel = async (req, res) => {
+    try {
+        assertDataEntryAccess(req);
+
+        const fileBase64 = req.body?.fileBase64;
+        if (!fileBase64 || typeof fileBase64 !== 'string') {
+            return res.status(400).json({ message: 'Excel file is required' });
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(Buffer.from(fileBase64, 'base64'));
+        const worksheet = findMedicineWorksheet(workbook);
+
+        if (!worksheet) {
+            return res.status(400).json({ message: 'No worksheet found in Excel file' });
+        }
+
+        const nameColumnIndex = getMedicineNameColumnIndex(worksheet);
+        const hasHeaderRow = nameColumnIndex > 1 || ['name', 'medicine', 'medicine name', 'medicines', 'medicine master']
+            .includes(String(worksheet.getRow(1).getCell(nameColumnIndex).text || '').trim().toLowerCase());
+        const medicineNames = [];
+
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1 && hasHeaderRow) {
+                return;
+            }
+
+            const cellValue = row.getCell(nameColumnIndex).text || row.getCell(nameColumnIndex).value;
+            const name = normalizeMasterName(String(cellValue || ''));
+
+            if (name) {
+                medicineNames.push(name);
+            }
+        });
+
+        const seen = new Set();
+        const uniqueNames = medicineNames.filter(name => {
+            const key = name.toLowerCase();
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
+
+        let addedCount = 0;
+        let skippedCount = medicineNames.length - uniqueNames.length;
+
+        for (const name of uniqueNames) {
+            const [existingRows] = await db.query('SELECT id FROM medicines WHERE LOWER(name) = LOWER(?) LIMIT 1', [name]);
+            if (existingRows.length) {
+                skippedCount += 1;
+                continue;
+            }
+
+            await insertOrFetchMasterItem('medicines', name);
+            addedCount += 1;
+        }
+
+        res.json({
+            message: 'Medicines imported successfully',
+            addedCount,
+            skippedCount,
+            totalRows: medicineNames.length
+        });
+    } catch (error) {
+        console.error('Error importing medicines:', error);
+        res.status(error.statusCode || 500).json({ message: 'Error importing medicines', error: error.message });
     }
 };
 
@@ -109,7 +233,10 @@ exports.deleteMedicine = async (req, res) => {
         res.json({ message: 'Medicine deleted', ...medicine });
     } catch (error) {
         console.error('Error deleting medicine:', error);
-        res.status(error.statusCode || 500).json({ message: 'Error deleting medicine', error: error.message });
+        res.status(error.statusCode || 500).json({
+            message: error.statusCode === 409 ? error.message : 'Error deleting medicine',
+            error: error.message
+        });
     }
 };
 

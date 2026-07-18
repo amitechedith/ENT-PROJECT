@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Patient } from '../models/patient.model';
 import { Prescription } from '../models/prescription.model';
@@ -66,6 +66,29 @@ export class DataService {
 
   deleteMedicine(name: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/master/medicines?name=${encodeURIComponent(name)}`);
+  }
+
+  exportMedicinesExcel(role: string): Observable<Blob> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.get(`${this.apiUrl}/master/medicines/export`, {
+      headers,
+      responseType: 'blob'
+    });
+  }
+
+  importMedicinesExcel(role: string, fileName: string, fileBase64: string): Observable<{
+    message: string;
+    addedCount: number;
+    skippedCount: number;
+    totalRows: number;
+  }> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.post<{
+      message: string;
+      addedCount: number;
+      skippedCount: number;
+      totalRows: number;
+    }>(`${this.apiUrl}/master/medicines/import`, { fileName, fileBase64 }, { headers });
   }
 
   addDiagnosis(name: string): Observable<any> {

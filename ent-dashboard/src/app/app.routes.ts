@@ -8,6 +8,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { AdminDashboardComponent } from './components/admin/admin-dashboard/admin-dashboard.component';
 import { ProfileComponent } from './components/auth/profile/profile.component';
 import { PatientHistoryComponent } from './components/patient-history/patient-history.component';
+import { DataEntryComponent } from './components/data-entry/data-entry.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -46,6 +47,12 @@ export const routes: Routes = [
   {
     path: 'admin',
     component: AdminDashboardComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['admin', 'doctor'] }
+  },
+  {
+    path: 'data-entry',
+    component: DataEntryComponent,
     canActivate: [AuthGuard],
     data: { roles: ['admin', 'doctor'] }
   },

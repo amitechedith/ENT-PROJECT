@@ -1,0 +1,132 @@
+<p-toast position="top-right" [baseZIndex]="10001"></p-toast>
+<p-confirmDialog appendTo="body" [baseZIndex]="10000"></p-confirmDialog>
+
+<div class="flex h-full min-h-0 flex-col overflow-hidden bg-gray-50">
+  <header class="border-b border-gray-200 bg-white px-5 py-4">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Data Entry</h2>
+        <p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-blue-600">Medicines Master</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          pButton
+          type="button"
+          icon="pi pi-download"
+          label="Export Excel"
+          class="p-button-outlined p-button-secondary"
+          [loading]="isExporting"
+          (click)="exportMedicines()">
+        </button>
+
+        <label
+          class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-blue-600 bg-blue-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
+          <i class="pi pi-upload text-sm"></i>
+          <span>{{ isImporting ? 'Importing...' : 'Import Excel' }}</span>
+          <input
+            type="file"
+            class="hidden"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            [disabled]="isImporting"
+            (change)="importMedicines($event)" />
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(320px,420px),1fr]">
+    <section class="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div class="border-b border-gray-100 px-4 py-3">
+        <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Add Medicines</h3>
+      </div>
+
+      <div class="flex flex-1 min-h-0 flex-col gap-3 p-4">
+        <textarea
+          pInputTextarea
+          rows="10"
+          class="w-full flex-1 resize-none text-sm"
+          [(ngModel)]="medicineText"
+          placeholder="Enter one or many medicine names"></textarea>
+
+        <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+          <button
+            pButton
+            type="button"
+            label="Clear"
+            class="p-button-text p-button-secondary"
+            [disabled]="isSaving || !medicineText.trim()"
+            (click)="medicineText = ''">
+          </button>
+          <button
+            pButton
+            type="button"
+            icon="pi pi-plus"
+            label="Add"
+            [loading]="isSaving"
+            [disabled]="!medicineText.trim()"
+            (click)="addMedicines()">
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Medicines</h3>
+          <p class="text-xs text-gray-500">{{ filteredMedicines.length }} of {{ medicines.length }}</p>
+        </div>
+
+        <span class="relative block w-full md:w-72">
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+          <input
+            pInputText
+            type="search"
+            class="w-full pl-8 text-sm"
+            [(ngModel)]="searchText"
+            placeholder="Search medicines"
+            (ngModelChange)="applyFilter()" />
+        </span>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-hidden">
+        <p-table
+          [value]="filteredMedicines"
+          [loading]="isLoading"
+          [scrollable]="true"
+          scrollHeight="flex"
+          styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th class="w-20">ID</th>
+              <th>Name</th>
+              <th class="w-24 text-center">Action</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-medicine>
+            <tr>
+              <td class="text-gray-500">{{ medicine.id || '-' }}</td>
+              <td class="font-medium text-gray-800">{{ medicine.name }}</td>
+              <td class="text-center">
+                <button
+                  pButton
+                  type="button"
+                  icon="pi pi-trash"
+                  class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                  (click)="confirmDeleteMedicine(medicine, $event)"
+                  aria-label="Delete medicine">
+                </button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="3" class="py-8 text-center text-sm text-gray-400">No medicines found.</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </section>
+  </div>
+</div>
