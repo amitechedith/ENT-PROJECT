@@ -90,29 +90,29 @@
 
       <!-- Patient Info -->
       <section class="prescription-patient mt-5 text-sm space-y-2">
-        <div class="flex items-start justify-between gap-4">
-          <div class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
-            Prescription ID: <span class="font-medium text-slate-900 normal-case">{{ billingId }}</span>
+        <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-1" *ngIf="selectedPatient.patientCode || selectedPatient.mobile || billingDateLabel">
+          <div *ngIf="selectedPatient.patientCode" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+            Patient ID: <span class="font-medium text-slate-900 normal-case">{{ selectedPatient.patientCode }}</span>
           </div>
-          <div class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+          <div *ngIf="selectedPatient.mobile" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+            Mobile: <span class="font-medium text-slate-900 normal-case">{{ selectedPatient.mobile }}</span>
+          </div>
+          <div *ngIf="billingDateLabel" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
             Date: <span class="font-medium text-slate-900 normal-case">{{ billingDateLabel }}</span>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-          <div class="flex items-center gap-2">
-            <span class="font-semibold tracking-wide text-slate-700 uppercase">Name:</span>
-            <span class="font-medium text-slate-900 truncate">{{ selectedPatient.name }}</span>
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
+          <div *ngIf="selectedPatient.name" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+            Name: <span class="font-medium text-slate-900 normal-case">{{ selectedPatient.name }}</span>
           </div>
 
-          <div class="flex items-center gap-2">
-            <span class="font-semibold tracking-wide text-slate-700 uppercase">Age:</span>
-            <span class="font-medium text-slate-900">{{ selectedPatient.age || '-' }}</span>
+          <div *ngIf="selectedPatient.gender" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+            Sex: <span class="font-medium text-slate-900 normal-case">{{ selectedPatient.gender }}</span>
           </div>
 
-          <div class="flex items-center gap-2">
-            <span class="font-semibold tracking-wide text-slate-700 uppercase">Sex:</span>
-            <span class="font-medium text-slate-900">{{ selectedPatient.gender || '-' }}</span>
+          <div *ngIf="billingId" class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
+            Prescription ID: <span class="font-medium text-slate-900 normal-case">{{ billingId }}</span>
           </div>
         </div>
       </section>
@@ -120,16 +120,39 @@
       <!-- Content -->
       <div class="prescription-content space-y-4 mt-5">
 
-        <!-- Vitals / Diagnosis -->
-        <div *ngIf="selectedPatient.currentDiagnosis && selectedPatient.currentDiagnosis.length > 0">
-          <h3
-            class="font-bold text-gray-700 mb-1.5 uppercase text-[11px] tracking-wider border-b border-gray-200 inline-block pb-0.5">
-            Diagnosis</h3>
-          <div class="flex flex-wrap gap-1.5">
-            <span *ngFor="let d of selectedPatient.currentDiagnosis"
-              class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs font-medium">
-              {{ d }}
-            </span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3"
+          *ngIf="selectedPatient.visitReason || selectedPatient.medicalBackground || selectedPatient.findings || (selectedPatient.currentDiagnosis && selectedPatient.currentDiagnosis.length > 0)">
+          <div *ngIf="selectedPatient.visitReason">
+            <h3
+              class="font-bold text-gray-700 mb-1.5 uppercase text-[11px] tracking-wider border-b border-gray-200 inline-block pb-0.5">
+              Chief Complaints</h3>
+            <p class="text-[13px] leading-5 text-gray-700 whitespace-pre-wrap">{{ selectedPatient.visitReason }}</p>
+          </div>
+
+          <div *ngIf="selectedPatient.medicalBackground">
+            <h3
+              class="font-bold text-gray-700 mb-1.5 uppercase text-[11px] tracking-wider border-b border-gray-200 inline-block pb-0.5">
+              Medical Background</h3>
+            <p class="text-[13px] leading-5 text-gray-700 whitespace-pre-wrap">{{ selectedPatient.medicalBackground }}</p>
+          </div>
+
+          <div *ngIf="selectedPatient.findings">
+            <h3
+              class="font-bold text-gray-700 mb-1.5 uppercase text-[11px] tracking-wider border-b border-gray-200 inline-block pb-0.5">
+              Findings</h3>
+            <p class="text-[13px] leading-5 text-gray-700 whitespace-pre-wrap">{{ selectedPatient.findings }}</p>
+          </div>
+
+          <div *ngIf="selectedPatient.currentDiagnosis && selectedPatient.currentDiagnosis.length > 0">
+            <h3
+              class="font-bold text-gray-700 mb-1.5 uppercase text-[11px] tracking-wider border-b border-gray-200 inline-block pb-0.5">
+              Diagnosis</h3>
+            <div class="flex flex-wrap gap-1.5">
+              <span *ngFor="let d of selectedPatient.currentDiagnosis"
+                class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs font-medium">
+                {{ d }}
+              </span>
+            </div>
           </div>
         </div>
 

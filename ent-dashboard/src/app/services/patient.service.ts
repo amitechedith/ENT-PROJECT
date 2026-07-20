@@ -166,8 +166,8 @@ export class PatientService {
     return this.http.post(`${this.apiUrl}/${patient.id}/visit`, patient);
   }
 
-  updateStatus(id: number, status: string): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/${id}/status`, { status });
+  updateStatus(id: number, status: string, paymentMode?: 'QR' | 'Cash' | null): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${id}/status`, { status, paymentMode });
   }
 
   updatePatient(patient: Patient): Observable<any> {
@@ -193,6 +193,14 @@ export class PatientService {
 
   getPatientByCode(patientCode: string): Observable<Patient> {
     return this.http.get<Patient>(`${this.apiUrl}/by-code/${encodeURIComponent(patientCode)}`);
+  }
+
+  getPatientsByMobile(mobile: string): Observable<Patient[]> {
+    return this.http.get<Patient[]>(`${this.apiUrl}/by-mobile/${encodeURIComponent(mobile)}`);
+  }
+
+  getPatientPrescriptions(patientId: number): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${patientId}/prescriptions`);
   }
 
   addPrescription(prescription: any): Observable<any> {

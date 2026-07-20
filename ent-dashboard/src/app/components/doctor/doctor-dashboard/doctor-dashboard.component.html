@@ -83,20 +83,44 @@
     <div *ngIf="selectedPatient" class="flex-1 flex flex-col h-full min-h-0 overflow-hidden animate-fadeIn">
 
       <!-- Top Bar -->
-      <header class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
-        <div>
-          <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-            {{ selectedPatient.name }}
-            <span class="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-              {{ selectedPatient.gender }}, {{ selectedPatient.age }}y
+      <header class="sticky top-0 bg-white border-b border-gray-200 px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-sm z-20">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 class="text-xl font-bold text-gray-800 truncate">
+              {{ selectedPatient.name }}
+            </h1>
+            <span *ngIf="selectedPatient.gender || selectedPatient.age"
+              class="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              <ng-container *ngIf="selectedPatient.gender">{{ selectedPatient.gender }}</ng-container>
+              <ng-container *ngIf="selectedPatient.gender && selectedPatient.age">, </ng-container>
+              <ng-container *ngIf="selectedPatient.age">{{ selectedPatient.age }}y</ng-container>
             </span>
-          </h1>
-          <p class="text-sm text-gray-500 mt-0.5">
-            Reason: <span class="text-gray-700 font-medium">{{ selectedPatient.visitReason }}</span>
-          </p>
+            <span class="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded" *ngIf="selectedPatient.tokenNumber">
+              #{{ selectedPatient.tokenNumber }}
+            </span>
+          </div>
+
+          <div class="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500">
+            <span *ngIf="selectedPatient.mobile">
+              <span class="font-semibold text-gray-600">Mobile:</span>
+              <span class="text-gray-800">{{ selectedPatient.mobile }}</span>
+            </span>
+            <span *ngIf="selectedPatient.latestVisitDate">
+              <span class="font-semibold text-gray-600">Latest Visit:</span>
+              <span class="text-gray-800">{{ formatVisitDate(selectedPatient.latestVisitDate) }}</span>
+            </span>
+            <span *ngIf="getPatientLastVisit(selectedPatient) !== 'N/A'">
+              <span class="font-semibold text-gray-600">Last Visit:</span>
+              <span class="text-gray-800">{{ getPatientLastVisit(selectedPatient) }}</span>
+            </span>
+            <span *ngIf="selectedPatient.status">
+              <span class="font-semibold text-gray-600">Status:</span>
+              <span class="text-gray-800">{{ selectedPatient.status }}</span>
+            </span>
+          </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 shrink-0">
           <button pButton icon="pi pi-chevron-left" class="p-button-text p-button-rounded p-button-secondary"
             [disabled]="!hasPreviousPatient()" (click)="goToPreviousPatient()" pTooltip="Previous Patient"></button>
 
@@ -115,84 +139,86 @@
       <!-- Scrollable Content -->
       <div class="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 bg-gray-50/50">
 
-        <!-- Info & Vitals Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          <!-- Key Info -->
-          <p-card styleClass="h-full shadow-sm border-0 compact-card">
-            <ng-template pTemplate="header">
-              <div class="px-4 py-2.5 border-b border-gray-50">
-                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Patient Info</h3>
-              </div>
-            </ng-template>
-            <div class="flex flex-col gap-2.5 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-500">Mobile</span>
-                <span class="font-medium text-gray-800">{{ selectedPatient.mobile }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500">Last Visit</span>
-                <span class="font-medium text-gray-800">{{ getPatientLastVisit(selectedPatient) }}</span>
-              </div>
+        <!-- Clinical Details -->
+        <p-card styleClass="shadow-sm border-0 compact-card diagnosis-card">
+          <ng-template pTemplate="header">
+            <div class="px-4 py-2.5 border-b border-gray-50 flex justify-between items-center">
+              <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Clinical Details</h3>
             </div>
-          </p-card>
+          </ng-template>
 
-          <!-- Diagnosis Input -->
-          <div class="md:col-span-2">
-            <p-card styleClass="h-full shadow-sm border-0 compact-card diagnosis-card">
-              <ng-template pTemplate="header">
-                <div class="px-4 py-2.5 border-b border-gray-50 flex justify-between items-center">
-                  <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Diagnosis & History</h3>
-                </div>
-              </ng-template>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Chief Complaints</label>
+              <textarea pInputTextarea rows="2" class="w-full text-sm compact-textarea"
+                [(ngModel)]="selectedPatient.visitReason"
+                placeholder="Chief complaints"></textarea>
+            </div>
 
-              <div class="space-y-3">
-                <!-- Current Diagnosis -->
-                <div>
-                  <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Diagnosis</label>
-                  <p-autoComplete #diagAuto [(ngModel)]="selectedPatient.currentDiagnosis"
-                    [suggestions]="filteredDiagnoses" (completeMethod)="searchDiagnosis($event)" [multiple]="true"
-                    [dropdown]="true" placeholder="Select or Type & Enter..." class="w-full compact-autocomplete"
-                    appendTo="body" (onFocus)="openDiagnosisDropdown()" (onSelect)="onDiagnosisSelect($event)">
-                    <ng-template let-item pTemplate="item">
-                      <div class="flex items-center justify-between gap-2 w-full">
-                        <span class="truncate">{{ item }}</span>
-                        <button
-                          pButton
-                          icon="pi pi-times"
-                          size="small"
-                          severity="danger"
-                          text
-                          rounded
-                          class="tiny-delete-btn"
-                          (mousedown)="$event.preventDefault(); $event.stopPropagation()"
-                          (click)="confirmDeleteDiagnosis(item, $event)">
-                        </button>
-                      </div>
-                    </ng-template>
-                    <ng-template pTemplate="footer">
-                      <div *ngIf="isNewDiagnosis(currentDiagnosisQuery)" class="border-t border-gray-100 px-3 py-2">
-                        <button type="button" pButton icon="pi pi-plus"
-                          class="p-button-sm p-button-outlined p-button-info w-full justify-center"
-                          (click)="addDiagnosisToMaster(currentDiagnosisQuery)">
-                          Add "{{ currentDiagnosisQuery }}"
-                        </button>
-                      </div>
-                    </ng-template>
-                  </p-autoComplete>
-                </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Medical Background</label>
+              <p-autoComplete #backgroundAuto [(ngModel)]="selectedPatient.medicalBackgroundItems"
+                [suggestions]="filteredMedicalBackgroundOptions" (completeMethod)="searchMedicalBackground($event)"
+                [multiple]="true" [dropdown]="true" placeholder="Select or type..."
+                class="w-full compact-autocomplete" appendTo="body"
+                (onFocus)="openMedicalBackgroundDropdown()" (onSelect)="onMedicalBackgroundSelect($event)">
+                <ng-template let-item pTemplate="item">
+                  <span class="truncate">{{ item }}</span>
+                </ng-template>
+                <ng-template pTemplate="footer">
+                  <div *ngIf="isNewMedicalBackground(currentMedicalBackgroundQuery)" class="border-t border-gray-100 px-3 py-2">
+                    <button type="button" pButton icon="pi pi-plus"
+                      class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                      (click)="addMedicalBackgroundToPatient(currentMedicalBackgroundQuery)">
+                      Add "{{ currentMedicalBackgroundQuery.trim() }}"
+                    </button>
+                  </div>
+                </ng-template>
+              </p-autoComplete>
+            </div>
 
-                <!-- Medical Background -->
-                <div>
-                  <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Medical Background</label>
-                  <textarea pInputTextarea rows="2" class="w-full text-sm compact-textarea"
-                    [(ngModel)]="selectedPatient.medicalBackground"
-                    placeholder="Allergies, chronic conditions..."></textarea>
-                </div>
-              </div>
-            </p-card>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Findings</label>
+              <textarea pInputTextarea rows="2" class="w-full text-sm compact-textarea"
+                [(ngModel)]="selectedPatient.findings"
+                placeholder="Examination findings"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Diagnosis</label>
+              <p-autoComplete #diagAuto [(ngModel)]="selectedPatient.currentDiagnosis"
+                [suggestions]="filteredDiagnoses" (completeMethod)="searchDiagnosis($event)" [multiple]="true"
+                [dropdown]="true" placeholder="Select or type..." class="w-full compact-autocomplete"
+                appendTo="body" (onFocus)="openDiagnosisDropdown()" (onSelect)="onDiagnosisSelect($event)">
+                <ng-template let-item pTemplate="item">
+                  <div class="flex items-center justify-between gap-2 w-full">
+                    <span class="truncate">{{ item }}</span>
+                    <button
+                      pButton
+                      icon="pi pi-times"
+                      size="small"
+                      severity="danger"
+                      text
+                      rounded
+                      class="tiny-delete-btn"
+                      (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                      (click)="confirmDeleteDiagnosis(item, $event)">
+                    </button>
+                  </div>
+                </ng-template>
+                <ng-template pTemplate="footer">
+                  <div *ngIf="isNewDiagnosis(currentDiagnosisQuery)" class="border-t border-gray-100 px-3 py-2">
+                    <button type="button" pButton icon="pi pi-plus"
+                      class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                      (click)="addDiagnosisToMaster(currentDiagnosisQuery)">
+                      Add "{{ currentDiagnosisQuery }}"
+                    </button>
+                  </div>
+                </ng-template>
+              </p-autoComplete>
+            </div>
           </div>
-        </div>
+        </p-card>
 
         <!-- Previous Visit Notes -->
         <p-card styleClass="shadow-sm border-0">
@@ -267,6 +293,15 @@
                                 </button>
                               </div>
                             </ng-template>
+                            <ng-template pTemplate="footer">
+                              <div *ngIf="isNewDosage(med.dosage)" class="border-t border-gray-100 px-3 py-2">
+                                <button type="button" pButton icon="pi pi-plus"
+                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                                  (click)="addDosageToMaster(med.dosage, dosageAuto)">
+                                  Add "{{ med.dosage.trim() }}"
+                                </button>
+                              </div>
+                            </ng-template>
                           </p-autoComplete>
                         </td>
                         <td class="p-3">
@@ -283,6 +318,15 @@
                                   class="p-button-text p-button-rounded p-button-danger p-button-sm"
                                   (mousedown)="$event.preventDefault(); $event.stopPropagation()"
                                   (click)="confirmDeleteDosage(item, $event)"></button>
+                              </div>
+                            </ng-template>
+                            <ng-template pTemplate="footer">
+                              <div *ngIf="isNewDosage(newMedicineDraft.dosage)" class="border-t border-gray-100 px-3 py-2">
+                                <button type="button" pButton icon="pi pi-plus"
+                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                                  (click)="addDosageToMaster(newMedicineDraft.dosage, newDosageAuto)">
+                                  Add "{{ newMedicineDraft.dosage?.trim() }}"
+                                </button>
                               </div>
                             </ng-template>
                           </p-autoComplete>

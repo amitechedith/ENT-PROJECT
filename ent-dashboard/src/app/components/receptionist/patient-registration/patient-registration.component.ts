@@ -1,14 +1,18 @@
 import { Patient } from '../../../models/patient.model';
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { Table, TableModule } from 'primeng/table';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
+import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
+import { DialogModule } from 'primeng/dialog';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { CalendarModule } from 'primeng/calendar';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
@@ -16,6 +20,7 @@ import { DatePipe } from '@angular/common';
 import { PatientService } from '../../../services/patient.service';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
+import { Router } from '@angular/router';
 
 interface DateSummary {
   date: Date;
@@ -38,10 +43,14 @@ interface PaymentSummary {
     TableModule,
     DropdownModule,
     InputTextareaModule,
+    InputTextModule,
     ButtonModule,
     CardModule,
     ConfirmDialogModule,
     ToastModule,
+    DialogModule,
+    RadioButtonModule,
+    CalendarModule,
     MenuModule
   ],
   providers: [ConfirmationService, MessageService, DatePipe],
@@ -50,6 +59,7 @@ interface PaymentSummary {
 })
 export class PatientRegistrationComponent implements OnInit {
   @ViewChild('dt') table!: Table;
+  @ViewChild('nameInput') nameInput?: ElementRef<HTMLInputElement>;
 
   patients: Patient[] = [];
   dateSummaries: DateSummary[] = [];
@@ -62,6 +72,13 @@ export class PatientRegistrationComponent implements OnInit {
   assignedDoctorName = 'Doctor not assigned';
   patientCodeLookup = '';
   loadingPatientCode = false;
+  mobileMatches: Patient[] = [];
+  showPatientSelectDialog = false;
+  paymentDialogVisible = false;
+  paymentPatient: Patient | null = null;
+  selectedPaymentMode: 'QR' | 'Cash' = 'QR';
+  paymentFee = 0;
+  isPrintingPrescription = false;
 
   patient: Patient = this.createDefaultPatient();
 
@@ -88,7 +105,8 @@ export class PatientRegistrationComponent implements OnInit {
     private messageService: MessageService,
     private patientService: PatientService,
     private datePipe: DatePipe,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) { }
 
   ngOnInit() {
@@ -161,9 +179,13 @@ export class PatientRegistrationComponent implements OnInit {
   }
 
   openAddPatient(): void {
-    const patientCode = this.normalizePatientCode(this.patientCodeLookup);
-    if (patientCode) {
-      this.loadPatientByCode(patientCode);
+    const lookupValue = this.patientCodeLookup.trim();
+    if (lookupValue) {
+      if (/^[0-9]{10}$/.test(lookupValue)) {
+        this.loadPatientsByMobile(lookupValue);
+      } else {
+        this.loadPatientByCode(this.normalizePatientCode(lookupValue));
+      }
       return;
     }
 
@@ -180,28 +202,15 @@ export class PatientRegistrationComponent implements OnInit {
     this.patient = this.createDefaultPatient();
     this.patient.latestVisitDate = this.getSelectedDateKey();
     this.assignNextToken();
+    this.focusNameInput();
   }
 
   private loadPatientByCode(patientCode: string): void {
     this.loadingPatientCode = true;
     this.patientService.getPatientByCode(patientCode).subscribe({
       next: (patient) => {
-        this.showAddForm = true;
-        this.patient = {
-          ...patient,
-          patientCode: patient.patientCode || patientCode,
-          status: 'Waiting',
-          paymentMode: patient.paymentMode || 'QR',
-          consultationFee: this.defaultConsultationFee,
-          latestVisitDate: this.getSelectedDateKey() || patient.latestVisitDate || ''
-        };
-        this.assignNextToken();
         this.loadingPatientCode = false;
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Patient Loaded',
-          detail: `${patient.name} loaded for today's visit.`
-        });
+        this.loadExistingPatientForVisit(patient, patientCode);
       },
       error: (err) => {
         this.loadingPatientCode = false;
@@ -212,6 +221,69 @@ export class PatientRegistrationComponent implements OnInit {
         });
       }
     });
+  }
+
+  private loadPatientsByMobile(mobile: string): void {
+    this.loadingPatientCode = true;
+    this.patientService.getPatientsByMobile(mobile).subscribe({
+      next: (patients) => {
+        this.loadingPatientCode = false;
+
+        if (patients.length === 0) {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'Patient Not Found',
+            detail: 'No patient found for this mobile number.'
+          });
+          return;
+        }
+
+        if (patients.length === 1) {
+          this.loadExistingPatientForVisit(patients[0], patients[0].patientCode || '');
+          return;
+        }
+
+        this.mobileMatches = patients;
+        this.showPatientSelectDialog = true;
+      },
+      error: (err) => {
+        this.loadingPatientCode = false;
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'Patient Not Found',
+          detail: err.error?.message || 'No patient found for this mobile number.'
+        });
+      }
+    });
+  }
+
+  selectMobilePatient(patient: Patient): void {
+    this.showPatientSelectDialog = false;
+    this.mobileMatches = [];
+    this.loadExistingPatientForVisit(patient, patient.patientCode || '');
+  }
+
+  private loadExistingPatientForVisit(patient: Patient, patientCode: string): void {
+    this.showAddForm = true;
+    this.patient = {
+      ...patient,
+      patientCode: patient.patientCode || patientCode,
+      status: 'Waiting',
+      paymentMode: patient.paymentMode || 'QR',
+      consultationFee: this.defaultConsultationFee,
+      latestVisitDate: this.getSelectedDateKey() || patient.latestVisitDate || ''
+    };
+    this.assignNextToken();
+    this.focusNameInput();
+    this.messageService.add({
+      severity: 'success',
+      summary: 'Patient Loaded',
+      detail: `${patient.name} loaded for selected visit date.`
+    });
+  }
+
+  private focusNameInput(): void {
+    setTimeout(() => this.nameInput?.nativeElement?.focus(), 0);
   }
 
   private assignNextToken(): void {
@@ -528,6 +600,14 @@ export class PatientRegistrationComponent implements OnInit {
     });
   }
 
+  submitPatientForm(form: NgForm, event?: Event): void {
+    event?.preventDefault();
+
+    if (form.valid) {
+      this.onSubmit();
+    }
+  }
+
   confirmDelete(patient: Patient) {
     this.confirmationService.confirm({
       message: `Are you sure you want to delete ${patient.name}?`,
@@ -591,24 +671,48 @@ export class PatientRegistrationComponent implements OnInit {
       return;
     }
 
-    this.confirmationService.confirm({
-      message: `Confirm payment for ${patient.name}? This will update status to 'Payment Done'.`,
-      header: 'Confirm Payment',
-      icon: 'pi pi-wallet',
-      acceptButtonStyleClass: 'p-button-success',
-      accept: () => {
-        this.processPayment(patient);
-      }
-    });
+    this.paymentPatient = patient;
+    this.selectedPaymentMode = this.normalizePaymentMode(patient.paymentMode);
+    this.paymentFee = Number(patient.consultationFee || this.defaultConsultationFee || 0);
+    this.paymentDialogVisible = true;
   }
 
-  processPayment(patient: Patient) {
-    this.patientService.updateStatus(patient.id!, 'Payment Done').subscribe({
+  confirmPaymentDialog(): void {
+    if (!this.paymentPatient) {
+      return;
+    }
+
+    const fee = Number(this.paymentFee);
+    if (!Number.isFinite(fee) || fee < 0) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Invalid Fee',
+        detail: 'Enter a valid consultation fee.'
+      });
+      return;
+    }
+
+    this.processPayment(this.paymentPatient, this.selectedPaymentMode, fee);
+  }
+
+  processPayment(patient: Patient, paymentMode: 'QR' | 'Cash' = 'QR', consultationFee = Number(patient.consultationFee || 0)) {
+    const updatedPatient: Patient = {
+      ...patient,
+      status: 'Payment Done',
+      paymentMode,
+      consultationFee
+    };
+
+    this.patientService.updatePatient(updatedPatient).subscribe({
       next: () => {
         patient.status = 'Payment Done';
+        patient.paymentMode = paymentMode;
+        patient.consultationFee = consultationFee;
         this.patients = this.patients.map(item =>
-          item.id === patient.id ? { ...item, status: 'Payment Done' } : item
+          item.id === patient.id ? { ...item, status: 'Payment Done', paymentMode, consultationFee } : item
         );
+        this.paymentDialogVisible = false;
+        this.paymentPatient = null;
         this.messageService.add({
           severity: 'success',
           summary: 'Payment Confirmed',
@@ -618,6 +722,16 @@ export class PatientRegistrationComponent implements OnInit {
       error: (err) => {
         this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to update payment status' });
       }
+    });
+  }
+
+  printPrescription(patient: Patient): void {
+    if (!patient.id) {
+      return;
+    }
+
+    this.router.navigate(['/billing'], {
+      queryParams: { patientId: patient.id, autoprint: 1 }
     });
   }
 }

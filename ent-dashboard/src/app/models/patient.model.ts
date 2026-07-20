@@ -12,6 +12,8 @@ export interface Patient {
   paymentMode?: 'Cash' | 'QR' | null;
   currentDiagnosis?: string[];
   medicalBackground?: string;
+  medicalBackgroundItems?: string[];
+  findings?: string;
   latestVisitDate?: string;
   prescriptions?: Prescription[];
   tokenNumber?: number;

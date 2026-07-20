@@ -23,6 +23,8 @@ export class BillingPageComponent implements OnInit {
   doctorProfile: User | null = null;
   private pendingPatientId: number | null = null;
   private loadedPrescriptionPatientIds = new Set<number>();
+  private shouldAutoPrint = false;
+  private hasAutoPrinted = false;
 
   constructor(
     private doctorData: DoctorDataService,
@@ -36,6 +38,7 @@ export class BillingPageComponent implements OnInit {
     const patientIdParam = this.route.snapshot.queryParamMap.get('patientId');
     const patientId = Number(patientIdParam);
     this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+    this.shouldAutoPrint = this.route.snapshot.queryParamMap.get('autoprint') === '1';
 
     this.loadDoctorProfile();
     this.bootstrapPatients();
@@ -195,6 +198,7 @@ export class BillingPageComponent implements OnInit {
         this.loadedPrescriptionPatientIds.add(patient.id);
         this.pendingPatientId = null;
         this.selectedPatient = patient;
+        this.printIfRequested();
       },
       error: (err) => {
         console.error('Failed to load prescriptions', err);
@@ -202,8 +206,18 @@ export class BillingPageComponent implements OnInit {
         this.loadedPrescriptionPatientIds.add(patient.id);
         this.pendingPatientId = null;
         this.selectedPatient = patient;
+        this.printIfRequested();
       }
     });
+  }
+
+  private printIfRequested(): void {
+    if (!this.shouldAutoPrint || this.hasAutoPrinted) {
+      return;
+    }
+
+    this.hasAutoPrinted = true;
+    setTimeout(() => this.printRx(), 350);
   }
 
   get activePrescription(): any | undefined {

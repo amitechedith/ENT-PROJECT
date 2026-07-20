@@ -44,6 +44,7 @@ import { forkJoin, Observable } from 'rxjs';
 })
 export class DoctorDashboardComponent implements OnInit {
   @ViewChild('diagAuto') diagAuto!: AutoComplete;
+  @ViewChild('backgroundAuto') backgroundAuto!: AutoComplete;
   @ViewChild('medAuto') medAuto!: AutoComplete;
   @ViewChild('dosageAuto') dosageAuto!: AutoComplete;
   @ViewChild('newMedAuto') newMedAuto!: AutoComplete;
@@ -57,6 +58,20 @@ export class DoctorDashboardComponent implements OnInit {
   filteredMedicines: any[] = []; // For AutoComplete
   diagnosisList: any[] = [];
   filteredDiagnoses: any[] = []; // For AutoComplete
+  medicalBackgroundOptions: string[] = [
+    'BP',
+    'Hypertension',
+    'Diabetes',
+    'Thyroid',
+    'Asthma',
+    'Allergy',
+    'Migraine',
+    'Heart disease',
+    'Kidney disease',
+    'Previous surgery'
+  ];
+  filteredMedicalBackgroundOptions: string[] = [];
+  currentMedicalBackgroundQuery = '';
   dosages: any[] = [];
   filteredDosages: any[] = []; // For AutoComplete
 
@@ -87,6 +102,14 @@ export class DoctorDashboardComponent implements OnInit {
 
     if (this.diagAuto) {
       this.diagAuto.show();
+    }
+  }
+
+  openMedicalBackgroundDropdown() {
+    this.filteredMedicalBackgroundOptions = this.medicalBackgroundOptions.slice(0, 10);
+
+    if (this.backgroundAuto) {
+      this.backgroundAuto.show();
     }
   }
 
@@ -235,6 +258,7 @@ export class DoctorDashboardComponent implements OnInit {
 
   selectPatient(patient: Patient): void {
     this.selectedPatient = patient;
+    this.preparePatientClinicalFields(patient);
     this.updatePatientQueryParam(patient.id);
     this.resetNewMedicineDraft();
     // Default currentDiagnosis to empty array if undefined
@@ -248,6 +272,13 @@ export class DoctorDashboardComponent implements OnInit {
     }
 
     this.loadPatientPrescriptions(patient);
+  }
+
+  private preparePatientClinicalFields(patient: Patient): void {
+    patient.currentDiagnosis = patient.currentDiagnosis || [];
+    patient.medicalBackgroundItems = this.splitClinicalList(patient.medicalBackground);
+    this.addMedicalBackgroundOptions(patient.medicalBackgroundItems);
+    patient.findings = patient.findings || '';
   }
 
   private updatePatientQueryParam(patientId?: number): void {
@@ -437,6 +468,21 @@ export class DoctorDashboardComponent implements OnInit {
     }
   }
 
+  searchMedicalBackground(event: any) {
+    const query = event.query || '';
+    this.currentMedicalBackgroundQuery = query;
+    const filtered = query
+      ? this.medicalBackgroundOptions.filter(item => item.toLowerCase().includes(query.toLowerCase()))
+      : [...this.medicalBackgroundOptions];
+
+    const normalizedQuery = this.normalizeMasterValue(query);
+    if (normalizedQuery && !this.isValueInList(normalizedQuery, filtered)) {
+      filtered.unshift(normalizedQuery);
+    }
+
+    this.filteredMedicalBackgroundOptions = filtered;
+  }
+
   // --- Medicine Helper ---
 
   // --- Medicine Helper ---
@@ -495,6 +541,15 @@ export class DoctorDashboardComponent implements OnInit {
     this.addDiagnosisToMaster(diagnosisName);
   }
 
+  onMedicalBackgroundSelect(event: any) {
+    const selectedItem = event.value || event;
+    const backgroundName = this.normalizeMasterValue(selectedItem);
+
+    if (backgroundName) {
+      this.addMedicalBackgroundOption(backgroundName);
+    }
+  }
+
   onMedicineSelect(event: any) {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     const selectedItem = event.value || event;
@@ -522,20 +577,70 @@ export class DoctorDashboardComponent implements OnInit {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     const selectedItem = event.value || event;
     auto?.hide();
+    this.addDosageToMaster(selectedItem);
+  }
 
-    if (selectedItem && typeof selectedItem === 'string' && !this.dosages.includes(selectedItem)) {
-      this.doctorData.addDosage(selectedItem).subscribe({
+  addDosageToMaster(value?: string, auto?: AutoComplete): void {
+    const dosageName = this.normalizeMasterValue(value);
+    if (!dosageName || this.isValueInList(dosageName, this.dosages)) {
+      auto?.hide();
+      return;
+    }
+
+    this.doctorData.addDosage(dosageName).subscribe({
         next: (res) => {
-          console.log('Immediately added dosage:', selectedItem);
-          this.dosages.push(selectedItem);
+          console.log('Added dosage:', dosageName);
+          this.dosages.push(dosageName);
+          this.filteredDosages = [...this.dosages];
+          auto?.hide();
         },
         error: (err) => console.error('Error adding dosage', err)
       });
-    }
   }
 
   private normalizeMasterValue(value: string | null | undefined): string {
     return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private splitClinicalList(value?: string | null): string[] {
+    const seen = new Set<string>();
+
+    return String(value || '')
+      .split(/[,;\n]+/)
+      .map(item => this.normalizeMasterValue(item))
+      .filter(item => {
+        const key = item.toLowerCase();
+        if (!item || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  }
+
+  private serializeMedicalBackground(): void {
+    if (!this.selectedPatient) {
+      return;
+    }
+
+    const items = (this.selectedPatient.medicalBackgroundItems || [])
+      .map(item => this.normalizeMasterValue(item))
+      .filter(Boolean);
+
+    this.addMedicalBackgroundOptions(items);
+    this.selectedPatient.medicalBackground = items.join(', ');
+  }
+
+  private addMedicalBackgroundOption(value: string): void {
+    const normalizedValue = this.normalizeMasterValue(value);
+    if (normalizedValue && !this.isValueInList(normalizedValue, this.medicalBackgroundOptions)) {
+      this.medicalBackgroundOptions.push(normalizedValue);
+      this.medicalBackgroundOptions.sort((left, right) => left.localeCompare(right));
+    }
+  }
+
+  private addMedicalBackgroundOptions(values: string[]): void {
+    values.forEach(value => this.addMedicalBackgroundOption(value));
   }
 
   private isValueInList(value: string, list: string[]): boolean {
@@ -551,6 +656,35 @@ export class DoctorDashboardComponent implements OnInit {
   isNewMedicine(value?: string): boolean {
     const medicineName = this.normalizeMasterValue(value);
     return !!medicineName && !this.isValueInList(medicineName, this.medicines);
+  }
+
+  isNewDosage(value?: string): boolean {
+    const dosageName = this.normalizeMasterValue(value);
+    return !!dosageName && !this.isValueInList(dosageName, this.dosages);
+  }
+
+  isNewMedicalBackground(value?: string): boolean {
+    const backgroundName = this.normalizeMasterValue(value);
+    return !!backgroundName && !this.isValueInList(backgroundName, this.medicalBackgroundOptions);
+  }
+
+  addMedicalBackgroundToPatient(value?: string): void {
+    const backgroundName = this.normalizeMasterValue(value);
+    if (!backgroundName || !this.selectedPatient) {
+      return;
+    }
+
+    this.selectedPatient.medicalBackgroundItems = this.selectedPatient.medicalBackgroundItems || [];
+    if (!this.selectedPatient.medicalBackgroundItems.some(item => this.normalizeMasterValue(item).toLowerCase() === backgroundName.toLowerCase())) {
+      this.selectedPatient.medicalBackgroundItems.push(backgroundName);
+    }
+
+    this.addMedicalBackgroundOption(backgroundName);
+    this.currentMedicalBackgroundQuery = '';
+    if (this.backgroundAuto?.inputEL?.nativeElement) {
+      this.backgroundAuto.inputEL.nativeElement.value = '';
+    }
+    this.backgroundAuto?.hide(true);
   }
 
   addDiagnosisToMaster(value?: string): void {
@@ -737,6 +871,8 @@ export class DoctorDashboardComponent implements OnInit {
     if (!this.selectedPatient?.id) return;
 
     this.selectedPatient.status = 'In Consultation';
+    this.serializeMedicalBackground();
+
     const currentDiagnoses = this.selectedPatient.currentDiagnosis || [];
     const newDiagnoses = currentDiagnoses
       .map(d => this.normalizeMasterValue(d))
@@ -760,9 +896,7 @@ export class DoctorDashboardComponent implements OnInit {
       this.doctorData.updatePatient(this.selectedPatient)
     ];
 
-    if (currentDiagnoses.length > 0) {
-      saveRequests.push(this.doctorData.updatePatientDiagnosis(this.selectedPatient.id, currentDiagnoses));
-    }
+    saveRequests.push(this.doctorData.updatePatientDiagnosis(this.selectedPatient.id, currentDiagnoses));
 
     if (currentPrescription) {
       const payload = {

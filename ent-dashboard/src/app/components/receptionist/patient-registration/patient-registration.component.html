@@ -12,9 +12,12 @@
           <span class="font-semibold text-gray-700">{{ selectedDate | date:'mediumDate' }}</span>
         </p>
       </div>
-      <div class="text-right">
-        <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold">Date Scroll</p>
-        <p class="text-sm font-semibold text-blue-700">{{ dateSummaries.length }} days</p>
+      <div class="flex flex-col items-end gap-1">
+        <label class="text-xs uppercase tracking-wider text-gray-400 font-semibold">Filter Date</label>
+        <p-calendar [(ngModel)]="selectedDate" (ngModelChange)="onDateChange()" dateFormat="yy-mm-dd"
+          [showIcon]="true" styleClass="w-44" inputStyleClass="w-full text-sm" [touchUI]="true"
+          appendTo="body">
+        </p-calendar>
       </div>
     </div>
 
@@ -223,6 +226,12 @@
                 class="p-button-text p-button-rounded p-button-success" [disabled]="p.status === 'Payment Done' || p.status === 'Exited'"
                 pTooltip="Confirm Payment" tooltipPosition="top" (click)="confirmPayment(p)"></button>
 
+              <button *ngIf="!editing" pButton icon="pi pi-print"
+                class="p-button-text p-button-rounded p-button-secondary"
+                [disabled]="isPrintingPrescription"
+                pTooltip="Print Prescription" tooltipPosition="top"
+                (click)="printPrescription(p); $event.stopPropagation()"></button>
+
               <!-- 3 DOTS MENU (Visible when NOT editing) -->
               <ng-container *ngIf="!editing">
                 <button pButton icon="pi pi-ellipsis-v" class="p-button-text p-button-rounded p-button-secondary"
@@ -252,7 +261,7 @@
     <!-- Add Form -->
     <div *ngIf="showAddForm" class="animate-fadeIn bg-blue-50/60 p-4 rounded-xl border border-blue-200 w-full mt-4">
 
-      <form (ngSubmit)="onSubmit()" #patientForm="ngForm" class="flex flex-wrap justify-center items-end gap-4">
+      <form (ngSubmit)="onSubmit()" (keydown.enter)="submitPatientForm(patientForm, $event)" #patientForm="ngForm" class="flex flex-wrap justify-center items-end gap-4">
 
         <!-- Patient ID -->
         <div class="flex flex-col">
@@ -274,7 +283,7 @@
           <label class="text-sm font-medium text-gray-700 mb-1">
             Name <span class="text-red-500">*</span>
           </label>
-          <input type="text" [(ngModel)]="patient.name" name="name" required placeholder="Full Name"
+          <input #nameInput type="text" [(ngModel)]="patient.name" name="name" required placeholder="Full Name"
             class="w-48 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-3 py-2 shadow-sm transition" />
         </div>
 
@@ -377,8 +386,9 @@
       <!-- Show button only when form is hidden -->
       <div *ngIf="!showAddForm" class="flex flex-wrap items-center justify-center gap-2">
         <input type="text" [(ngModel)]="patientCodeLookup" name="patientCodeLookup"
-          placeholder="Patient ID"
-          class="w-40 rounded-lg border-gray-300 px-3 py-2 font-mono text-sm uppercase focus:border-blue-500 focus:ring focus:ring-blue-100" />
+          placeholder="Mobile/PATIENT_ID"
+          class="w-50 rounded-lg border-gray-300 px-3 py-2 font-mono text-sm uppercase focus:border-blue-500 focus:ring focus:ring-blue-100"
+          (keydown.enter)="$event.preventDefault(); openAddPatient()" />
         <button pButton icon="pi pi-user-plus" label="Add New Patient" class="p-button-info p-button-rounded"
           [disabled]="loadingPatientCode"
           (click)="openAddPatient()"></button>
@@ -393,5 +403,71 @@
     [baseZIndex]="10000"
     position="center">
   </p-confirmDialog>
+
+  <p-dialog header="Select Patient" [(visible)]="showPatientSelectDialog"
+    [modal]="true" [style]="{width: '90vw', maxWidth: '520px'}"
+    [draggable]="false" [resizable]="false" [baseZIndex]="10000">
+    <div class="space-y-2">
+      <button *ngFor="let match of mobileMatches" type="button"
+        class="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50"
+        (click)="selectMobilePatient(match)">
+        <span>
+          <span class="block font-semibold text-gray-800">{{ match.name }}</span>
+          <span class="block text-xs text-gray-500">
+            {{ match.patientCode || '-' }} · {{ match.gender || '-' }}, {{ match.age || '-' }}y
+          </span>
+        </span>
+        <i class="pi pi-chevron-right text-blue-500"></i>
+      </button>
+    </div>
+  </p-dialog>
+
+  <p-dialog header="Confirm Payment" [(visible)]="paymentDialogVisible"
+    [modal]="true" [style]="{width: '90vw', maxWidth: '420px'}"
+    [draggable]="false" [resizable]="false" [baseZIndex]="10000"
+    (keydown.enter)="confirmPaymentDialog()">
+    <div class="space-y-4" *ngIf="paymentPatient">
+      <div class="rounded-lg bg-blue-50 px-3 py-2 text-sm text-slate-700">
+        <div class="font-semibold text-slate-900">{{ paymentPatient.name }}</div>
+        <div class="text-xs text-slate-500">
+          {{ paymentPatient.patientCode || '-' }}
+        </div>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Consultation Fee</label>
+        <div class="p-inputgroup">
+          <span class="p-inputgroup-addon">₹</span>
+          <input pInputText type="number" min="0" [(ngModel)]="paymentFee"
+            class="font-bold"
+            (keydown.enter)="confirmPaymentDialog()" />
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <label class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border px-3 py-3"
+          [ngClass]="selectedPaymentMode === 'QR' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'">
+          <p-radioButton name="paymentModeConfirm" value="QR" [(ngModel)]="selectedPaymentMode"></p-radioButton>
+          <span class="font-medium text-gray-700">QR</span>
+        </label>
+
+        <label class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border px-3 py-3"
+          [ngClass]="selectedPaymentMode === 'Cash' ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white'">
+          <p-radioButton name="paymentModeConfirm" value="Cash" [(ngModel)]="selectedPaymentMode"></p-radioButton>
+          <span class="font-medium text-gray-700">Cash</span>
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
+        <button pButton type="button" label="Cancel" class="p-button-text p-button-secondary"
+          (click)="paymentDialogVisible = false"></button>
+        <button pButton type="button" label="Yes" icon="pi pi-check"
+          severity="success"
+          class="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700 hover:!border-green-700"
+          autofocus
+          (click)="confirmPaymentDialog()"></button>
+      </div>
+    </div>
+  </p-dialog>
 
 </div>
