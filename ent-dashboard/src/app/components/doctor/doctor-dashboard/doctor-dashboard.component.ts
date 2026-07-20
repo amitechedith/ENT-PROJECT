@@ -55,6 +55,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
   private loadedPrescriptionPatientIds = new Set<number>();
   private pendingPatientId: number | null = null;
   private realtimeSubscription?: Subscription;
+  private savingPatientId: number | null = null;
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -107,6 +108,10 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
   private handleRealtimeEvent(event: RealtimeEvent): void {
     if (!['patient-changed', 'prescription-changed'].includes(event.type)) {
+      return;
+    }
+
+    if (this.savingPatientId && event.patientId === this.savingPatientId) {
       return;
     }
 
@@ -590,29 +595,30 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     this.addDraftMedicineToPrescription();
   }
 
-  onDosageSelect(event: any, auto?: AutoComplete) {
+  onDosageSelect(event: any) {
     // PrimeNG AutoComplete onSelect emits an event object with { originalEvent, value }
     const selectedItem = event.value || event;
-    auto?.hide();
-    this.addDosageToMaster(selectedItem);
+    const dosageName = this.normalizeMasterValue(selectedItem);
+
+    if (dosageName && !this.isValueInList(dosageName, this.dosages)) {
+      this.addDosageToMaster(dosageName);
+    }
   }
 
-  addDosageToMaster(value?: string, auto?: AutoComplete): void {
+  addDosageToMaster(value?: string): void {
     const dosageName = this.normalizeMasterValue(value);
     if (!dosageName || this.isValueInList(dosageName, this.dosages)) {
-      auto?.hide();
       return;
     }
 
     this.doctorData.addDosage(dosageName).subscribe({
-        next: (res) => {
-          console.log('Added dosage:', dosageName);
-          this.dosages.push(dosageName);
-          this.filteredDosages = [...this.dosages];
-          auto?.hide();
-        },
-        error: (err) => console.error('Error adding dosage', err)
-      });
+      next: () => {
+        console.log('Added dosage:', dosageName);
+        this.dosages.push(dosageName);
+        this.filteredDosages = [...this.dosages];
+      },
+      error: (err) => console.error('Error adding dosage', err)
+    });
   }
 
   private normalizeMasterValue(value: string | null | undefined): string {
@@ -887,6 +893,8 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
   saveChanges(): void {
     if (!this.selectedPatient?.id) return;
 
+    const selectedPatientId = this.selectedPatient.id;
+    this.savingPatientId = selectedPatientId;
     this.selectedPatient.status = 'In Consultation';
     this.serializeMedicalBackground();
 
@@ -916,8 +924,9 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     saveRequests.push(this.doctorData.updatePatientDiagnosis(this.selectedPatient.id, currentDiagnoses));
 
     if (currentPrescription) {
+      this.addPrescriptionDosagesToMaster(currentPrescription, saveRequests);
       const payload = {
-        patientId: this.selectedPatient.id,
+        patientId: selectedPatientId,
         date: currentPrescription.date,
         notes: currentPrescription.notes,
         nextVisitDate: null,
@@ -932,16 +941,17 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
           .filter(m => !!m.medicineName)
       };
 
-      saveRequests.push(this.doctorData.savePrescription(this.selectedPatient.id, payload));
+      saveRequests.push(this.doctorData.savePrescription(selectedPatientId, payload));
     }
 
     forkJoin(saveRequests).subscribe({
       next: () => {
         this.displayedPatients = this.displayedPatients.map(patient =>
-          patient.id === this.selectedPatient?.id
+          patient.id === selectedPatientId
             ? { ...patient, status: 'In Consultation' }
             : patient
         );
+        this.refreshSelectedPatientPrescriptions();
 
         this.messageService.add({
           severity: 'success',
@@ -952,12 +962,51 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error(err);
+        this.savingPatientId = null;
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
           detail: 'Unable to save consultation data',
           life: 3000
         });
+      }
+    });
+  }
+
+  private addPrescriptionDosagesToMaster(prescription: Prescription, saveRequests: Observable<any>[]): void {
+    const newDosages = new Set<string>();
+
+    prescription.medicines
+      .map(medicine => this.normalizeMasterValue(medicine.dosage))
+      .filter(dosage => dosage && !this.isValueInList(dosage, this.dosages))
+      .forEach(dosage => newDosages.add(dosage));
+
+    newDosages.forEach(dosage => {
+      this.dosages.push(dosage);
+      this.filteredDosages = [...this.dosages];
+      saveRequests.push(this.doctorData.addDosage(dosage));
+    });
+  }
+
+  private refreshSelectedPatientPrescriptions(): void {
+    const patient = this.selectedPatient;
+    const patientId = patient?.id;
+    if (!patientId) {
+      this.savingPatientId = null;
+      return;
+    }
+
+    this.loadedPrescriptionPatientIds.delete(patientId);
+    this.doctorData.getPatientPrescriptions(patientId).subscribe({
+      next: (prescriptions) => {
+        patient.prescriptions = (prescriptions || []).map(prescription => this.normalizePrescription(prescription));
+        this.loadedPrescriptionPatientIds.add(patientId);
+        this.ensurePrescriptionExists();
+        this.savingPatientId = null;
+      },
+      error: (err) => {
+        console.error('Failed to refresh prescriptions after save', err);
+        this.savingPatientId = null;
       }
     });
   }

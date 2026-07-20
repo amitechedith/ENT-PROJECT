@@ -293,24 +293,14 @@
                                 </button>
                               </div>
                             </ng-template>
-                            <ng-template pTemplate="footer">
-                              <div *ngIf="isNewDosage(med.dosage)" class="border-t border-gray-100 px-3 py-2">
-                                <button type="button" pButton icon="pi pi-plus"
-                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
-                                  (click)="addDosageToMaster(med.dosage, dosageAuto)">
-                                  Add "{{ med.dosage.trim() }}"
-                                </button>
-                              </div>
-                            </ng-template>
                           </p-autoComplete>
                         </td>
                         <td class="p-3">
                           <p-autoComplete #dosageAuto [(ngModel)]="med.dosage" [suggestions]="filteredDosages"
                             (completeMethod)="searchDosage($event)" [dropdown]="true"
-                            placeholder="Select or Type Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
+                            placeholder="Select or Type Dosage" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(dosageAuto)"
-                            (onFocus)="openDosageDropdown(dosageAuto)"
-                            (onSelect)="onDosageSelect($event, dosageAuto)">
+                            (onSelect)="onDosageSelect($event)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
                                 <span class="truncate">{{ item }}</span>
@@ -321,11 +311,11 @@
                               </div>
                             </ng-template>
                             <ng-template pTemplate="footer">
-                              <div *ngIf="isNewDosage(newMedicineDraft.dosage)" class="border-t border-gray-100 px-3 py-2">
+                              <div *ngIf="isNewDosage(med.dosage)" class="border-t border-gray-100 px-3 py-2">
                                 <button type="button" pButton icon="pi pi-plus"
                                   class="p-button-sm p-button-outlined p-button-info w-full justify-center"
-                                  (click)="addDosageToMaster(newMedicineDraft.dosage, newDosageAuto)">
-                                  Add "{{ newMedicineDraft.dosage?.trim() }}"
+                                  (click)="addDosageToMaster(med.dosage)">
+                                  Add "{{ med.dosage.trim() }}"
                                 </button>
                               </div>
                             </ng-template>
@@ -377,10 +367,9 @@
                         <td class="p-3">
                           <p-autoComplete #newDosageAuto [(ngModel)]="newMedicineDraft.dosage" [suggestions]="filteredDosages"
                             (completeMethod)="searchDosage($event)" [dropdown]="true"
-                            placeholder="Dosage" class="compact-autocomplete" [style]="{'width':'100%'}"
+                            placeholder="Dosage" class="w-full block compact-autocomplete" [style]="{'width':'100%'}"
                             [inputStyle]="{'width':'100%'}" appendTo="body" (click)="openDosageDropdown(newDosageAuto)"
-                            (onFocus)="openDosageDropdown(newDosageAuto)"
-                            (onSelect)="onDosageSelect($event, newDosageAuto)">
+                            (onSelect)="onDosageSelect($event)">
                             <ng-template let-item pTemplate="item">
                               <div class="flex items-center justify-between gap-2 w-full">
                                 <span class="truncate">{{ item }}</span>
@@ -394,6 +383,15 @@
                                   class="tiny-delete-btn"
                                   (mousedown)="$event.preventDefault(); $event.stopPropagation()"
                                   (click)="confirmDeleteDosage(item, $event)"></button>
+                              </div>
+                            </ng-template>
+                            <ng-template pTemplate="footer">
+                              <div *ngIf="isNewDosage(newMedicineDraft.dosage)" class="border-t border-gray-100 px-3 py-2">
+                                <button type="button" pButton icon="pi pi-plus"
+                                  class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                                  (click)="addDosageToMaster(newMedicineDraft.dosage)">
+                                  Add "{{ newMedicineDraft.dosage?.trim() }}"
+                                </button>
                               </div>
                             </ng-template>
                           </p-autoComplete>
