@@ -1,4 +1,5 @@
 const db = require('../config/db.config');
+const { publishRealtimeEvent } = require('../realtime');
 
 function normalizeDateValue(value) {
     if (typeof value !== 'string') {
@@ -79,6 +80,7 @@ exports.savePrescription = async (req, res) => {
         // Update patient status to Payment Done? Or keep In Consultation? 
         // User flow: Doctor saves -> "Payment Pending" maybe? Leaving status as is for now or doctor updates manually.
 
+        publishRealtimeEvent({ type: 'prescription-changed', action: 'saved', patientId: Number(patientId), prescriptionId, date: prescriptionDate });
         res.json({
             message: sameDayRows.length > 0 ? 'Prescription updated' : 'Prescription saved',
             id: prescriptionId,

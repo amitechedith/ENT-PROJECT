@@ -5,6 +5,7 @@ const path = require('path');
 require('dotenv').config();
 const db = require('./config/db.config');
 const { createTables, ensureInitialAdminUser } = require('./models');
+const { realtimeEventsHandler } = require('./realtime');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/export', exportRoutes);
+app.get('/api/events', realtimeEventsHandler);
 
 // Serve Angular SPA static files in production
 if (process.env.NODE_ENV === 'production') {

@@ -1,5 +1,5 @@
 import { Patient } from '../../../models/patient.model';
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Table, TableModule } from 'primeng/table';
@@ -21,6 +21,8 @@ import { PatientService } from '../../../services/patient.service';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { RealtimeEvent, RealtimeService } from '../../../services/realtime.service';
 
 interface DateSummary {
   date: Date;
@@ -57,7 +59,7 @@ interface PaymentSummary {
   templateUrl: './patient-registration.component.html',
   styleUrls: ['./patient-registration.component.css']
 })
-export class PatientRegistrationComponent implements OnInit {
+export class PatientRegistrationComponent implements OnInit, OnDestroy {
   @ViewChild('dt') table!: Table;
   @ViewChild('nameInput') nameInput?: ElementRef<HTMLInputElement>;
 
@@ -79,6 +81,7 @@ export class PatientRegistrationComponent implements OnInit {
   selectedPaymentMode: 'QR' | 'Cash' = 'QR';
   paymentFee = 0;
   isPrintingPrescription = false;
+  private realtimeSubscription?: Subscription;
 
   patient: Patient = this.createDefaultPatient();
 
@@ -106,11 +109,26 @@ export class PatientRegistrationComponent implements OnInit {
     private patientService: PatientService,
     private datePipe: DatePipe,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private realtimeService: RealtimeService
   ) { }
 
   ngOnInit() {
     this.loadDefaultConsultationFee();
+    this.loadDateSummaries();
+    this.loadPatientsForSelectedDate();
+    this.realtimeSubscription = this.realtimeService.connect().subscribe(event => this.handleRealtimeEvent(event));
+  }
+
+  ngOnDestroy(): void {
+    this.realtimeSubscription?.unsubscribe();
+  }
+
+  private handleRealtimeEvent(event: RealtimeEvent): void {
+    if (!['patient-changed', 'prescription-changed'].includes(event.type)) {
+      return;
+    }
+
     this.loadDateSummaries();
     this.loadPatientsForSelectedDate();
   }

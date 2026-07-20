@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -19,7 +19,8 @@ import { DoctorDataService } from '../../../services/doctor-data.service';
 import { PrescriptionMedicine } from '../../../models/prescription-medicine.model';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { forkJoin, Observable } from 'rxjs';
+import { forkJoin, Observable, Subscription } from 'rxjs';
+import { RealtimeEvent, RealtimeService } from '../../../services/realtime.service';
 
 @Component({
   selector: 'app-doctor-dashboard',
@@ -42,7 +43,7 @@ import { forkJoin, Observable } from 'rxjs';
   templateUrl: './doctor-dashboard.component.html',
   styleUrls: ['./doctor-dashboard.component.css'],
 })
-export class DoctorDashboardComponent implements OnInit {
+export class DoctorDashboardComponent implements OnInit, OnDestroy {
   @ViewChild('diagAuto') diagAuto!: AutoComplete;
   @ViewChild('backgroundAuto') backgroundAuto!: AutoComplete;
   @ViewChild('medAuto') medAuto!: AutoComplete;
@@ -53,6 +54,7 @@ export class DoctorDashboardComponent implements OnInit {
   selectedPatient?: Patient;
   private loadedPrescriptionPatientIds = new Set<number>();
   private pendingPatientId: number | null = null;
+  private realtimeSubscription?: Subscription;
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -86,7 +88,8 @@ export class DoctorDashboardComponent implements OnInit {
     private confirmationService: ConfirmationService,
     private router: Router,
     private route: ActivatedRoute,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private realtimeService: RealtimeService
   ) { }
 
   ngOnInit(): void {
@@ -95,6 +98,20 @@ export class DoctorDashboardComponent implements OnInit {
     this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
 
     this.loadData();
+    this.realtimeSubscription = this.realtimeService.connect().subscribe(event => this.handleRealtimeEvent(event));
+  }
+
+  ngOnDestroy(): void {
+    this.realtimeSubscription?.unsubscribe();
+  }
+
+  private handleRealtimeEvent(event: RealtimeEvent): void {
+    if (!['patient-changed', 'prescription-changed'].includes(event.type)) {
+      return;
+    }
+
+    const selectedPatientId = this.selectedPatient?.id || null;
+    this.loadPatientsForSelectedDate(selectedPatientId);
   }
   openDiagnosisDropdown() {
     // Load first 10 items

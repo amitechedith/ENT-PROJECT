@@ -1,4 +1,5 @@
 const db = require('../config/db.config');
+const { publishRealtimeEvent } = require('../realtime');
 const LOCAL_TIME_ZONE = process.env.APP_TIME_ZONE || 'Asia/Kolkata';
 
 function normalizeDateValue(value) {
@@ -529,6 +530,7 @@ exports.createPatient = async (req, res) => {
             'INSERT INTO patients (patientCode, name, age, gender, mobile, visitReason, status, paymentMode, latestVisitDate, tokenNumber, consultationFee, medicalBackground, findings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [patientCode, name, age, gender, finalMobile, visitReason, finalStatus, finalPaymentMode, visitDateKey, finalToken, finalConsultationFee, finalMedicalBackground, finalFindings]
         );
+        publishRealtimeEvent({ type: 'patient-changed', action: 'created', patientId: result.insertId, patientCode, date: visitDateKey });
         res.json({ id: result.insertId, patientCode, tokenNumber: finalToken, message: 'Patient registered' });
     } catch (error) {
         console.error(error);
@@ -603,6 +605,7 @@ exports.registerPatientVisit = async (req, res) => {
             mobile: finalMobile,
             medicalBackground: finalMedicalBackground
         }, visitPatientId);
+        publishRealtimeEvent({ type: 'patient-changed', action: 'visit-registered', patientId: visitPatientId, patientCode, date: visitDateKey });
 
         res.json({
             id: visitPatientId,
@@ -626,6 +629,7 @@ exports.updatePatientStatus = async (req, res) => {
             'UPDATE patients SET status = ?, paymentMode = ? WHERE id = ?',
             [finalStatus, finalPaymentMode, req.params.id]
         );
+        publishRealtimeEvent({ type: 'patient-changed', action: 'status-updated', patientId: Number(req.params.id), status: finalStatus });
         res.json({ message: 'Status updated' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating status' });
@@ -660,6 +664,7 @@ exports.updatePatient = async (req, res) => {
             }, req.params.id);
         }
 
+        publishRealtimeEvent({ type: 'patient-changed', action: 'updated', patientId: Number(req.params.id), patientCode, date: req.body.latestVisitDate || null });
         res.json({ message: 'Patient updated successfully' });
     } catch (error) {
         console.error(error);
@@ -683,6 +688,7 @@ exports.deletePatient = async (req, res) => {
             return res.status(404).json({ message: 'Patient visit not found for selected date' });
         }
 
+        publishRealtimeEvent({ type: 'patient-changed', action: 'deleted', patientId: Number(req.params.id), date: visitDate || null });
         res.json({ message: 'Patient deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting patient' });
@@ -705,6 +711,7 @@ exports.updateDiagnosis = async (req, res) => {
                 await db.query('INSERT INTO patient_diagnoses (patientId, diagnosisName) VALUES (?, ?)', [patientId, d]);
             }
         }
+        publishRealtimeEvent({ type: 'patient-changed', action: 'diagnosis-updated', patientId: Number(patientId) });
         res.json({ message: 'Diagnosis updated' });
 
     } catch (error) {
