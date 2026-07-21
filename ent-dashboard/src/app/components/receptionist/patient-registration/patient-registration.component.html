@@ -62,7 +62,8 @@
       </ng-template>
 
       <ng-template pTemplate="body" let-p let-editing="editing" let-ri="rowIndex">
-        <tr [pEditableRow]="p" class="cursor-pointer" (click)="onRowClick(p, $event)">
+        <tr #patientRow [pEditableRow]="p" class="cursor-pointer" (click)="onRowClick(p, $event)"
+          (keydown.enter)="saveEditedRowOnEnter(p, editing, patientRow, $event)">
           <td>
             <span class="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded">
               {{ p.patientCode || '-' }}
@@ -240,9 +241,9 @@
               </ng-container>
 
               <!-- Save (Visible when editing) -->
-              <button *ngIf="editing" pButton pSaveEditableRow icon="pi pi-check" (click)="onRowSave(p)" text rounded
+              <button *ngIf="editing" pButton pSaveEditableRow icon="pi pi-check" (click)="onRowSave(p)"
                 [disabled]="!isPatientBasicsValid(p)"
-                severity="success"></button>
+                class="p-button-success p-button-rounded edit-save-button"></button>
 
               <!-- Cancel (Visible when editing) -->
               <button *ngIf="editing" pButton pCancelEditableRow icon="pi pi-times" text (click)="onRowCancel(p, ri)"

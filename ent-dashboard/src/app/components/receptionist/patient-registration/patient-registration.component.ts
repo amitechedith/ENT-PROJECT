@@ -665,6 +665,22 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     }
   }
 
+  saveEditedRowOnEnter(p: Patient, editing: boolean, rowElement: HTMLTableRowElement, event: Event): void {
+    if (!editing) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!this.validatePatientBasics(p)) {
+      return;
+    }
+
+    this.table.saveRowEdit(p, rowElement);
+    this.onRowSave(p);
+  }
+
   onRowCancel(p: Patient, ri: number) {
     console.log("Row edit canceled:", p, "index:", ri);
   }
