@@ -23,7 +23,8 @@ function getLocalDateKey(dateValue = new Date()) {
 function normalizePatientDates(patient) {
     return {
         ...patient,
-        latestVisitDate: patient.latestVisitDate ? getLocalDateKey(patient.latestVisitDate) : null
+        latestVisitDate: patient.latestVisitDate ? getLocalDateKey(patient.latestVisitDate) : null,
+        prescriptionMedicineCount: Number(patient.prescriptionMedicineCount) || 0
     };
 }
 
@@ -150,13 +151,36 @@ async function syncPatientProfileDetails(patientCode, details, excludePatientId 
 exports.getPatients = async (req, res) => {
     try {
         const requestedDate = normalizeDateValue(req.query.date);
-        const query = requestedDate
-            ? 'SELECT * FROM patients WHERE latestVisitDate = ? ORDER BY FIELD(status, "In Consultation", "Waiting", "Payment Done")'
-            : 'SELECT * FROM patients ORDER BY FIELD(status, "In Consultation", "Waiting", "Payment Done")';
+        const prescriptionDateFilter = requestedDate ? 'WHERE date = ?' : '';
+        const visitDateCondition = requestedDate ? 'WHERE p.latestVisitDate = ?' : '';
+        const medicineCountJoin = `
+            LEFT JOIN (
+                SELECT pr.patientId,
+                       pr.date,
+                       COUNT(pm.id) AS medicineCount
+                FROM prescriptions pr
+                INNER JOIN (
+                    SELECT patientId, date, MAX(id) AS id
+                    FROM prescriptions
+                    ${prescriptionDateFilter}
+                    GROUP BY patientId, date
+                ) latest ON latest.id = pr.id
+                LEFT JOIN prescription_medicines pm
+                    ON pm.prescriptionId = pr.id
+                   AND TRIM(COALESCE(pm.medicineName, '')) <> ''
+                GROUP BY pr.patientId, pr.date
+            ) rx ON rx.patientId = p.id AND rx.date = p.latestVisitDate
+        `;
+        const query = `
+            SELECT p.*, COALESCE(rx.medicineCount, 0) AS prescriptionMedicineCount
+            FROM patients p
+            ${medicineCountJoin}
+            ${visitDateCondition}
+            ORDER BY FIELD(p.status, "In Consultation", "Waiting", "Payment Done")
+        `;
+        const queryParams = requestedDate ? [requestedDate, requestedDate] : [];
 
-        const [patients] = requestedDate
-            ? await db.query(query, [requestedDate])
-            : await db.query(query);
+        const [patients] = await db.query(query, queryParams);
 
         // For each patient, attach diagnoses
         for (let p of patients) {
@@ -277,6 +301,44 @@ exports.getPatientsByMobile = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error fetching patients by mobile' });
+    }
+};
+
+exports.getPatientsByName = async (req, res) => {
+    try {
+        const name = String(req.params.name || '').trim().slice(0, 100);
+        if (name.length < 2) {
+            return res.status(400).json({ message: 'Enter at least 2 characters for name search' });
+        }
+
+        const [rows] = await db.query(
+            `
+            SELECT *
+            FROM patients
+            WHERE name LIKE ?
+            ORDER BY COALESCE(latestVisitDate, DATE(createdAt)) DESC, id DESC
+            LIMIT 25
+            `,
+            [`%${name}%`]
+        );
+
+        const patientMap = new Map();
+        for (const row of rows) {
+            const patient = normalizePatientDates(row);
+            const key = patient.patientCode || `id-${patient.id}`;
+            if (!patientMap.has(key)) {
+                await hydrateMedicalBackground(patient);
+                const [diags] = await db.query('SELECT diagnosisName FROM patient_diagnoses WHERE patientId = ?', [patient.id]);
+                patient.currentDiagnosis = diags.map(d => d.diagnosisName);
+                patient.paymentMode = patient.status === 'Exited' ? null : (patient.paymentMode || 'QR');
+                patientMap.set(key, patient);
+            }
+        }
+
+        res.json(Array.from(patientMap.values()));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error fetching patients by name' });
     }
 };
 

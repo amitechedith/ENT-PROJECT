@@ -199,6 +199,10 @@ export class PatientService {
     return this.http.get<Patient[]>(`${this.apiUrl}/by-mobile/${encodeURIComponent(mobile)}`);
   }
 
+  getPatientsByName(name: string): Observable<Patient[]> {
+    return this.http.get<Patient[]>(`${this.apiUrl}/by-name/${encodeURIComponent(name)}`);
+  }
+
   getPatientPrescriptions(patientId: number): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/${patientId}/prescriptions`);
   }

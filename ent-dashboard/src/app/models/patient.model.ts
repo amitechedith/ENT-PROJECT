@@ -16,6 +16,7 @@ export interface Patient {
   findings?: string;
   latestVisitDate?: string;
   prescriptions?: Prescription[];
+  prescriptionMedicineCount?: number;
   tokenNumber?: number;
   consultationFee?: number;
 }

@@ -207,8 +207,10 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     if (lookupValue) {
       if (/^[0-9]{10}$/.test(lookupValue)) {
         this.loadPatientsByMobile(lookupValue);
-      } else {
+      } else if (this.isPatientCodeLookup(lookupValue)) {
         this.loadPatientByCode(this.normalizePatientCode(lookupValue));
+      } else {
+        this.loadPatientsByName(lookupValue);
       }
       return;
     }
@@ -221,10 +223,11 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     this.patient = this.createDefaultPatient();
   }
 
-  private openBlankPatientForm(mobile = ''): void {
+  private openBlankPatientForm(mobile = '', name = ''): void {
     this.showAddForm = true;
     this.patient = this.createDefaultPatient();
     this.patient.mobile = mobile;
+    this.patient.name = name;
     this.patient.latestVisitDate = this.getSelectedDateKey();
     this.assignNextToken();
     this.focusNameInput();
@@ -283,6 +286,47 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     });
   }
 
+  private loadPatientsByName(name: string): void {
+    const normalizedName = name.trim();
+    if (normalizedName.length < 2) {
+      this.openBlankPatientForm('', normalizedName);
+      return;
+    }
+
+    this.loadingPatientCode = true;
+    this.patientService.getPatientsByName(normalizedName).subscribe({
+      next: (patients) => {
+        this.loadingPatientCode = false;
+
+        if (patients.length === 0) {
+          this.openBlankPatientForm('', normalizedName);
+          return;
+        }
+
+        if (patients.length === 1) {
+          this.loadExistingPatientForVisit(patients[0], patients[0].patientCode || '');
+          return;
+        }
+
+        this.mobileMatches = patients;
+        this.showPatientSelectDialog = true;
+      },
+      error: (err) => {
+        this.loadingPatientCode = false;
+        if (err.status === 404) {
+          this.openBlankPatientForm('', normalizedName);
+          return;
+        }
+
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Lookup Failed',
+          detail: err.error?.message || 'Unable to search this name.'
+        });
+      }
+    });
+  }
+
   selectMobilePatient(patient: Patient): void {
     this.showPatientSelectDialog = false;
     this.mobileMatches = [];
@@ -323,6 +367,10 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
 
   private normalizePatientCode(value: string): string {
     return value.trim().toUpperCase();
+  }
+
+  private isPatientCodeLookup(value: string): boolean {
+    return /^PT[0-9A-Z-]*$/i.test(value.trim()) || /^[0-9]{1,9}$/.test(value.trim());
   }
 
   private getSelectedDateKey(): string {
@@ -541,6 +589,16 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
       'bg-orange-100 text-orange-800': patient.paymentMode === 'Cash' && patient.status !== 'Exited',
       'bg-slate-100 text-slate-500': patient.status === 'Exited' || !patient.paymentMode
     };
+  }
+
+  hasPrintablePrescription(patient: Patient): boolean {
+    if (Number(patient.prescriptionMedicineCount || 0) > 0) {
+      return true;
+    }
+
+    return (patient.prescriptions || []).some(prescription =>
+      (prescription.medicines || []).some(medicine => String(medicine.medicineName || '').trim().length > 0)
+    );
   }
 
   private isValidMobile(mobile?: string | null): boolean {

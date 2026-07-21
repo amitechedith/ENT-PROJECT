@@ -417,11 +417,17 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    return this.completedConsultationKey === this.getConsultationKey(this.selectedPatient.id);
+    return this.hasCurrentPrescriptionMedicines()
+      && this.completedConsultationKey === this.getConsultationKey(this.selectedPatient.id);
   }
 
   private getConsultationKey(patientId: number): string {
     return `${patientId}:${this.getSelectedDateKey()}`;
+  }
+
+  private hasCurrentPrescriptionMedicines(): boolean {
+    const prescription = this.getCurrentPrescription();
+    return (prescription?.medicines || []).some(medicine => this.normalizeMasterValue(medicine.medicineName).length > 0);
   }
 
   ensurePrescriptionExists() {
@@ -495,7 +501,8 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     const daysToTake = Number(this.newMedicineDraft.daysToTake || 0);
     const dosage = this.normalizeMasterValue(this.newMedicineDraft.dosage) || '1-0-1';
 
-    const alreadyAdded = pres.medicines.some(m => this.normalizeMasterValue(m.medicineName).toLowerCase() === medicineName.toLowerCase());
+    const medicineKey = this.getMedicineDuplicateKey(medicineName);
+    const alreadyAdded = pres.medicines.some(m => this.getMedicineDuplicateKey(m.medicineName) === medicineKey);
     if (!alreadyAdded) {
       pres.medicines.push({
         prescriptionId: pres.id || 0,
@@ -539,15 +546,21 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
         const existingMedicineNames = new Set(
           pres.medicines
-            .map(medicine => this.normalizeMasterValue(medicine.medicineName).toLowerCase())
+            .map(medicine => this.getMedicineDuplicateKey(medicine.medicineName))
             .filter(Boolean)
         );
         let addedCount = 0;
+        let skippedDuplicateCount = 0;
 
         templateMedicines.forEach(medicine => {
           const medicineName = this.normalizeMasterValue(medicine.medicineName);
-          const key = medicineName.toLowerCase();
-          if (!medicineName || existingMedicineNames.has(key)) {
+          const key = this.getMedicineDuplicateKey(medicineName);
+          if (!medicineName || !key) {
+            return;
+          }
+
+          if (existingMedicineNames.has(key)) {
+            skippedDuplicateCount += 1;
             return;
           }
 
@@ -563,10 +576,13 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
         });
 
         if (addedCount > 0) {
+          const duplicateNote = skippedDuplicateCount
+            ? ` ${skippedDuplicateCount} duplicate${skippedDuplicateCount === 1 ? '' : 's'} skipped.`
+            : '';
           this.messageService.add({
             severity: 'success',
             summary: 'Medicines Added',
-            detail: `${addedCount} medicine${addedCount === 1 ? '' : 's'} added for ${normalizedDiagnosis}.`,
+            detail: `${addedCount} medicine${addedCount === 1 ? '' : 's'} added for ${normalizedDiagnosis}.${duplicateNote}`,
             life: 1200
           });
           return;
@@ -575,7 +591,9 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
         this.messageService.add({
           severity: 'info',
           summary: 'Already Added',
-          detail: `Medicines for ${normalizedDiagnosis} are already in the prescription.`,
+          detail: skippedDuplicateCount
+            ? `Duplicate medicines for ${normalizedDiagnosis} were ignored.`
+            : `Medicines for ${normalizedDiagnosis} are already in the prescription.`,
           life: 1200
         });
       },
@@ -743,6 +761,10 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
   private normalizeMasterValue(value: string | null | undefined): string {
     return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private getMedicineDuplicateKey(value: string | null | undefined): string {
+    return this.normalizeMasterValue(value).replace(/\s+/g, ' ').toLowerCase();
   }
 
   private splitClinicalList(value?: string | null): string[] {

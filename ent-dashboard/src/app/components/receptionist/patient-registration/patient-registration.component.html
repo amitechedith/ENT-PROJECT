@@ -227,10 +227,11 @@
                 class="p-button-text p-button-rounded p-button-success" [disabled]="p.status === 'Payment Done' || p.status === 'Exited'"
                 pTooltip="Confirm Payment" tooltipPosition="top" (click)="confirmPayment(p)"></button>
 
-              <button *ngIf="!editing" pButton icon="pi pi-print"
+              <button pButton icon="pi pi-print"
                 class="p-button-text p-button-rounded p-button-secondary"
-                [disabled]="isPrintingPrescription"
-                pTooltip="Print Prescription" tooltipPosition="top"
+                [disabled]="isPrintingPrescription || !hasPrintablePrescription(p)"
+                [pTooltip]="hasPrintablePrescription(p) ? 'Print Prescription' : 'Prescription has no medicines'"
+                tooltipPosition="top"
                 (click)="printPrescription(p); $event.stopPropagation()"></button>
 
               <!-- 3 DOTS MENU (Visible when NOT editing) -->
@@ -387,7 +388,7 @@
       <!-- Show button only when form is hidden -->
       <div *ngIf="!showAddForm" class="flex flex-wrap items-center justify-center gap-2">
         <input type="text" [(ngModel)]="patientCodeLookup" name="patientCodeLookup"
-          placeholder="Mobile/PATIENT_ID"
+          placeholder="NAME/MOBILE/PATIENT_ID"
           class="w-50 rounded-lg border-gray-300 px-3 py-2 font-mono text-sm uppercase focus:border-blue-500 focus:ring focus:ring-blue-100"
           (keydown.enter)="$event.preventDefault(); openAddPatient()" />
         <button pButton icon="pi pi-user-plus" label="Add New Patient" class="p-button-info p-button-rounded"

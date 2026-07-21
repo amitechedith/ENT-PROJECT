@@ -11,6 +11,7 @@ router.get('/date-summaries', patientController.getPatientDateSummaries);
 router.get('/history', patientController.getPatientVisitHistory);
 router.get('/by-code/:patientCode', patientController.getPatientByCode);
 router.get('/by-mobile/:mobile', patientController.getPatientsByMobile);
+router.get('/by-name/:name', patientController.getPatientsByName);
 router.get('/:id', patientController.getPatientById);
 router.post('/', patientController.createPatient);
 router.post('/:id/visit', patientController.registerPatientVisit);
