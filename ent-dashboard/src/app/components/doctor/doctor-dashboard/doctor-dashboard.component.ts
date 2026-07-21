@@ -18,6 +18,7 @@ import { Medicine } from '../../../models/medicine.model';
 import { DoctorDataService } from '../../../services/doctor-data.service';
 import { PrescriptionMedicine } from '../../../models/prescription-medicine.model';
 import { ToastModule } from 'primeng/toast';
+import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { forkJoin, Observable, Subscription } from 'rxjs';
 import { RealtimeEvent, RealtimeService } from '../../../services/realtime.service';
@@ -38,6 +39,7 @@ import { AuthService } from '../../../services/auth.service';
     MultiSelectModule,
     CalendarModule,
     ToastModule,
+    TooltipModule,
     AutoCompleteModule // Added
   ],
   providers: [DatePipe, ConfirmationService, MessageService],
@@ -419,6 +421,18 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
     return this.hasCurrentPrescriptionMedicines()
       && this.completedConsultationKey === this.getConsultationKey(this.selectedPatient.id);
+  }
+
+  getPrintPrescriptionTooltip(): string {
+    if (!this.hasCurrentPrescriptionMedicines()) {
+      return 'Add medicine before printing';
+    }
+
+    if (!this.selectedPatient?.id || this.completedConsultationKey !== this.getConsultationKey(this.selectedPatient.id)) {
+      return 'Complete consultation before printing';
+    }
+
+    return 'Print Prescription';
   }
 
   private getConsultationKey(patientId: number): string {

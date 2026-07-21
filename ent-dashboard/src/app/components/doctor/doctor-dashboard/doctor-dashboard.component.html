@@ -130,7 +130,7 @@
           <div class="h-6 w-px bg-gray-200 mx-1"></div>
 
           <button pButton label="Print" icon="pi pi-print" class="p-button-outlined p-button-secondary"
-            [disabled]="!canPrintPrescription()" (click)="goToBilling()" pTooltip="Complete consultation before printing"></button>
+            [disabled]="!canPrintPrescription()" (click)="goToBilling()" [pTooltip]="getPrintPrescriptionTooltip()"></button>
 
           <button pButton label="Complete" icon="pi pi-check" class="p-button-success doctor-complete-button" (click)="saveChanges()"></button>
         </div>
@@ -399,7 +399,18 @@
                     <td class="p-3">
                           <input pInputText type="number" [(ngModel)]="newMedicineDraft.daysToTake" class="w-full text-center" />
                         </td>
-                    <td class="p-3 text-center"></td>
+                    <td class="p-3 text-center">
+                      <button
+                        pButton
+                        type="button"
+                        icon="pi pi-plus"
+                        class="p-button-rounded p-button-success"
+                        [disabled]="!newMedicineDraft.medicineName?.trim()"
+                        pTooltip="Add Medicine"
+                        tooltipPosition="top"
+                        (click)="addDraftMedicineToPrescription()">
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>

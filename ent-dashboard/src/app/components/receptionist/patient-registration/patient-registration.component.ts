@@ -826,7 +826,7 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
   }
 
   printPrescription(patient: Patient): void {
-    if (!patient.id) {
+    if (!patient.id || !this.hasPrintablePrescription(patient)) {
       return;
     }
 
