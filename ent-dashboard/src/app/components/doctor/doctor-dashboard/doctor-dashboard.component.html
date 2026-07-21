@@ -129,8 +129,8 @@
 
           <div class="h-6 w-px bg-gray-200 mx-1"></div>
 
-          <button pButton label="Print Rx" icon="pi pi-print" class="p-button-outlined p-button-secondary"
-            [disabled]="!selectedPatient" (click)="goToBilling()" pTooltip="Open prescription page for this patient"></button>
+          <button pButton label="Print" icon="pi pi-print" class="p-button-outlined p-button-secondary"
+            [disabled]="!canPrintPrescription()" (click)="goToBilling()" pTooltip="Complete consultation before printing"></button>
 
           <button pButton label="Complete" icon="pi pi-check" class="p-button-success doctor-complete-button" (click)="saveChanges()"></button>
         </div>

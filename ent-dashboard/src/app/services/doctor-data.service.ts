@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, map } from 'rxjs';
-import { DataService } from './data.service';
+import { DataService, DiagnosisTemplate } from './data.service';
 import { Patient } from '../models/patient.model';
 import { Medicine } from '../models/medicine.model';
 import { Diagnosis } from '../models/diagnosis.model';
@@ -84,5 +84,9 @@ export class DoctorDataService {
 
   updatePatientDiagnosis(patientId: number, diagnoses: string[]): Observable<any> {
     return this.dataService.updatePatientDiagnosis(patientId, diagnoses);
+  }
+
+  getDiagnosisTemplate(doctorId: string, diagnosisName: string): Observable<DiagnosisTemplate> {
+    return this.dataService.getDiagnosisTemplate(doctorId, diagnosisName);
   }
 }

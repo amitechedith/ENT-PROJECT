@@ -11,6 +11,10 @@ router.delete('/medicines', masterController.deleteMedicine);
 router.get('/diagnoses', masterController.getDiagnoses);
 router.post('/diagnoses', masterController.addDiagnosis);
 router.delete('/diagnoses', masterController.deleteDiagnosis);
+router.get('/diagnosis-templates', masterController.getDiagnosisTemplates);
+router.get('/diagnosis-template', masterController.getDiagnosisTemplate);
+router.put('/diagnosis-template', masterController.saveDiagnosisTemplate);
+router.delete('/diagnosis-template', masterController.deleteDiagnosisTemplate);
 
 router.get('/dosages', masterController.getDosages);
 router.post('/dosages', masterController.addDosage);

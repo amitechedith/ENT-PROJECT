@@ -21,6 +21,7 @@ import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { forkJoin, Observable, Subscription } from 'rxjs';
 import { RealtimeEvent, RealtimeService } from '../../../services/realtime.service';
+import { AuthService } from '../../../services/auth.service';
 
 @Component({
   selector: 'app-doctor-dashboard',
@@ -57,6 +58,8 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
   private realtimeSubscription?: Subscription;
   private savingPatientId: number | null = null;
   private hasRouteSelectedDate = false;
+  private templateDoctorId = '';
+  private completedConsultationKey = '';
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -91,7 +94,8 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     private router: Router,
     private route: ActivatedRoute,
     private messageService: MessageService,
-    private realtimeService: RealtimeService
+    private realtimeService: RealtimeService,
+    private authService: AuthService
   ) { }
 
   ngOnInit(): void {
@@ -104,6 +108,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
       this.hasRouteSelectedDate = true;
     }
 
+    this.initializeTemplateDoctor();
     this.loadData();
     this.realtimeSubscription = this.realtimeService.connect().subscribe(event => this.handleRealtimeEvent(event));
   }
@@ -124,6 +129,27 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     const selectedPatientId = this.selectedPatient?.id || null;
     this.loadPatientsForSelectedDate(selectedPatientId);
   }
+
+  private initializeTemplateDoctor(): void {
+    const currentUser = this.authService.currentUserValue;
+    if (currentUser?.role === 'doctor') {
+      this.templateDoctorId = currentUser.id;
+      return;
+    }
+
+    if (currentUser?.assignedDoctorId) {
+      this.templateDoctorId = currentUser.assignedDoctorId;
+      return;
+    }
+
+    this.authService.getUsers().subscribe({
+      next: users => {
+        this.templateDoctorId = users.find(user => user.role === 'doctor')?.id || '';
+      },
+      error: err => console.error('Failed to resolve doctor for diagnosis templates', err)
+    });
+  }
+
   openDiagnosisDropdown() {
     // Load first 10 items
     this.filteredDiagnoses = this.diagnosisList.slice(0, 10);
@@ -281,11 +307,13 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
   onDateChange() {
     this.selectedPatient = undefined;
+    this.completedConsultationKey = '';
     this.loadPatientsForSelectedDate();
   }
 
   selectPatient(patient: Patient): void {
     this.selectedPatient = patient;
+    this.completedConsultationKey = '';
     this.preparePatientClinicalFields(patient);
     this.updatePatientQueryParam(patient.id);
     this.resetNewMedicineDraft();
@@ -370,7 +398,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
   goToBilling(patient?: Patient): void {
     const targetPatient = patient || this.selectedPatient;
-    if (!targetPatient?.id) {
+    if (!targetPatient?.id || !this.canPrintPrescription()) {
       return;
     }
 
@@ -382,6 +410,18 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
         returnDate: this.getSelectedDateKey()
       }
     });
+  }
+
+  canPrintPrescription(): boolean {
+    if (!this.selectedPatient?.id) {
+      return false;
+    }
+
+    return this.completedConsultationKey === this.getConsultationKey(this.selectedPatient.id);
+  }
+
+  private getConsultationKey(patientId: number): string {
+    return `${patientId}:${this.getSelectedDateKey()}`;
   }
 
   ensurePrescriptionExists() {
@@ -479,6 +519,70 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     }
   }
 
+  private applyDiagnosisTemplate(diagnosisName: string): void {
+    const normalizedDiagnosis = this.normalizeMasterValue(diagnosisName);
+    if (!normalizedDiagnosis || !this.templateDoctorId) {
+      return;
+    }
+
+    const pres = this.getCurrentPrescription();
+    if (!pres) {
+      return;
+    }
+
+    this.doctorData.getDiagnosisTemplate(this.templateDoctorId, normalizedDiagnosis).subscribe({
+      next: template => {
+        const templateMedicines = template.medicines || [];
+        if (!templateMedicines.length) {
+          return;
+        }
+
+        const existingMedicineNames = new Set(
+          pres.medicines
+            .map(medicine => this.normalizeMasterValue(medicine.medicineName).toLowerCase())
+            .filter(Boolean)
+        );
+        let addedCount = 0;
+
+        templateMedicines.forEach(medicine => {
+          const medicineName = this.normalizeMasterValue(medicine.medicineName);
+          const key = medicineName.toLowerCase();
+          if (!medicineName || existingMedicineNames.has(key)) {
+            return;
+          }
+
+          pres.medicines.push({
+            prescriptionId: pres.id || 0,
+            medicineId: medicine.medicineId || 0,
+            medicineName,
+            dosage: this.normalizeMasterValue(medicine.dosage) || '1-0-1',
+            daysToTake: Number(medicine.daysToTake || 0) > 0 ? Number(medicine.daysToTake) : 5
+          });
+          existingMedicineNames.add(key);
+          addedCount += 1;
+        });
+
+        if (addedCount > 0) {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Medicines Added',
+            detail: `${addedCount} medicine${addedCount === 1 ? '' : 's'} added for ${normalizedDiagnosis}.`,
+            life: 1200
+          });
+          return;
+        }
+
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Already Added',
+          detail: `Medicines for ${normalizedDiagnosis} are already in the prescription.`,
+          life: 1200
+        });
+      },
+      error: err => console.error('Failed to load diagnosis medicine template', err)
+    });
+  }
+
   removeMedicine(index: number): void {
     const pres = this.getCurrentPrescription();
     if (pres && pres.medicines.length > index) {
@@ -566,12 +670,17 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
     const diagnosisName = this.normalizeMasterValue(selectedItem);
 
-    if (!diagnosisName || this.isValueInList(diagnosisName, this.diagnosisList)) {
-      console.log('Skipping addDiagnosis - already exists or invalid type');
+    if (!diagnosisName) {
+      console.log('Skipping addDiagnosis - invalid type');
       return;
     }
 
-    this.addDiagnosisToMaster(diagnosisName);
+    if (this.isValueInList(diagnosisName, this.diagnosisList)) {
+      this.applyDiagnosisTemplate(diagnosisName);
+      return;
+    }
+
+    this.addDiagnosisToMaster(diagnosisName, true);
   }
 
   onMedicalBackgroundSelect(event: any) {
@@ -721,7 +830,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     this.backgroundAuto?.hide(true);
   }
 
-  addDiagnosisToMaster(value?: string): void {
+  addDiagnosisToMaster(value?: string, applyTemplate = true): void {
     const diagnosisName = this.normalizeMasterValue(value ?? this.currentDiagnosisQuery);
     if (!diagnosisName || !this.selectedPatient) {
       return;
@@ -737,6 +846,9 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
     if (this.isValueInList(diagnosisName, this.diagnosisList)) {
       this.clearDiagnosisQuery();
+      if (applyTemplate) {
+        this.applyDiagnosisTemplate(diagnosisName);
+      }
       return;
     }
 
@@ -746,6 +858,9 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
         this.diagnosisList.push(diagnosisName);
         this.filteredDiagnoses = [...this.diagnosisList];
         this.clearDiagnosisQuery();
+        if (applyTemplate) {
+          this.applyDiagnosisTemplate(diagnosisName);
+        }
       },
       error: (err) => console.error('Error adding diagnosis', err)
     });
@@ -957,6 +1072,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
 
     forkJoin(saveRequests).subscribe({
       next: () => {
+        this.completedConsultationKey = this.getConsultationKey(selectedPatientId);
         this.displayedPatients = this.displayedPatients.map(patient =>
           patient.id === selectedPatientId
             ? { ...patient, status: 'In Consultation' }

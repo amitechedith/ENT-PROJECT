@@ -74,27 +74,49 @@ const assertMasterItemNotInUse = async (type, name) => {
         const [rows] = await db.query(
             `
             SELECT COUNT(*) AS count
-            FROM prescription_medicines pm
-            LEFT JOIN medicines m ON m.id = pm.medicineId
-            WHERE pm.medicineName = ? OR m.name = ?
+            FROM (
+                SELECT pm.id
+                FROM prescription_medicines pm
+                LEFT JOIN medicines m ON m.id = pm.medicineId
+                WHERE pm.medicineName = ? OR m.name = ?
+                UNION ALL
+                SELECT dmt.id
+                FROM diagnosis_medicine_templates dmt
+                LEFT JOIN medicines m ON m.id = dmt.medicineId
+                WHERE dmt.medicineName = ? OR m.name = ?
+            ) used_items
             `,
-            [normalizedName, normalizedName]
+            [normalizedName, normalizedName, normalizedName, normalizedName]
         );
         count = Number(rows[0]?.count || 0);
     }
 
     if (type === 'diagnosis') {
         const [rows] = await db.query(
-            'SELECT COUNT(*) AS count FROM patient_diagnoses WHERE diagnosisName = ?',
-            [normalizedName]
+            `
+            SELECT COUNT(*) AS count
+            FROM (
+                SELECT patientId AS id FROM patient_diagnoses WHERE diagnosisName = ?
+                UNION ALL
+                SELECT id FROM diagnosis_medicine_templates WHERE diagnosisName = ?
+            ) used_items
+            `,
+            [normalizedName, normalizedName]
         );
         count = Number(rows[0]?.count || 0);
     }
 
     if (type === 'dosage') {
         const [rows] = await db.query(
-            'SELECT COUNT(*) AS count FROM prescription_medicines WHERE dosage = ?',
-            [normalizedName]
+            `
+            SELECT COUNT(*) AS count
+            FROM (
+                SELECT id FROM prescription_medicines WHERE dosage = ?
+                UNION ALL
+                SELECT id FROM diagnosis_medicine_templates WHERE dosage = ?
+            ) used_items
+            `,
+            [normalizedName, normalizedName]
         );
         count = Number(rows[0]?.count || 0);
     }
@@ -270,6 +292,191 @@ exports.deleteDiagnosis = async (req, res) => {
     } catch (error) {
         console.error('Error deleting diagnosis:', error);
         res.status(error.statusCode || 500).json({ message: 'Error deleting diagnosis', error: error.message });
+    }
+};
+
+const normalizeDoctorId = (value) => normalizeMasterName(String(value || ''));
+
+const normalizeTemplateMedicines = (medicines) => {
+    if (!Array.isArray(medicines)) {
+        return [];
+    }
+
+    const seen = new Set();
+    return medicines
+        .map((medicine, index) => {
+            const medicineName = normalizeMasterName(medicine?.medicineName);
+            const dosage = normalizeMasterName(medicine?.dosage);
+            const daysToTake = Number(medicine?.daysToTake);
+
+            return {
+                medicineName,
+                dosage,
+                daysToTake: Number.isFinite(daysToTake) && daysToTake > 0 ? Math.floor(daysToTake) : 5,
+                position: index
+            };
+        })
+        .filter(medicine => {
+            const key = medicine.medicineName.toLowerCase();
+            if (!medicine.medicineName || seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
+};
+
+exports.getDiagnosisTemplates = async (req, res) => {
+    try {
+        const doctorId = normalizeDoctorId(req.query.doctorId);
+        if (!doctorId) {
+            return res.status(400).json({ message: 'Doctor is required' });
+        }
+
+        const [rows] = await db.query(
+            `
+            SELECT diagnosisName, COUNT(*) AS medicineCount, MAX(updatedAt) AS updatedAt
+            FROM diagnosis_medicine_templates
+            WHERE doctorId = ?
+            GROUP BY diagnosisName
+            ORDER BY diagnosisName
+            `,
+            [doctorId]
+        );
+
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching diagnosis templates:', error);
+        res.status(500).json({ message: 'Error fetching diagnosis templates' });
+    }
+};
+
+exports.getDiagnosisTemplate = async (req, res) => {
+    try {
+        const doctorId = normalizeDoctorId(req.query.doctorId);
+        const diagnosisName = normalizeMasterName(req.query.diagnosisName);
+
+        if (!doctorId || !diagnosisName) {
+            return res.status(400).json({ message: 'Doctor and diagnosis are required' });
+        }
+
+        const [rows] = await db.query(
+            `
+            SELECT id, doctorId, diagnosisId, diagnosisName, medicineId, medicineName, dosage, daysToTake, position
+            FROM diagnosis_medicine_templates
+            WHERE doctorId = ? AND LOWER(diagnosisName) = LOWER(?)
+            ORDER BY position ASC, id ASC
+            `,
+            [doctorId, diagnosisName]
+        );
+
+        res.json({
+            doctorId,
+            diagnosisName: rows[0]?.diagnosisName || diagnosisName,
+            medicines: rows
+        });
+    } catch (error) {
+        console.error('Error fetching diagnosis template:', error);
+        res.status(500).json({ message: 'Error fetching diagnosis template' });
+    }
+};
+
+exports.saveDiagnosisTemplate = async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        assertDataEntryAccess(req);
+
+        const doctorId = normalizeDoctorId(req.body.doctorId);
+        const diagnosisName = normalizeMasterName(req.body.diagnosisName);
+        const medicines = normalizeTemplateMedicines(req.body.medicines);
+
+        if (!doctorId || !diagnosisName) {
+            return res.status(400).json({ message: 'Doctor and diagnosis are required' });
+        }
+
+        if (!medicines.length) {
+            return res.status(400).json({ message: 'Add at least one medicine for this diagnosis' });
+        }
+
+        await connection.beginTransaction();
+
+        await connection.query('INSERT IGNORE INTO diagnoses (name) VALUES (?)', [diagnosisName]);
+        const [diagnosisRows] = await connection.query('SELECT id, name FROM diagnoses WHERE name = ? LIMIT 1', [diagnosisName]);
+        const diagnosis = diagnosisRows[0];
+
+        await connection.query(
+            'DELETE FROM diagnosis_medicine_templates WHERE doctorId = ? AND LOWER(diagnosisName) = LOWER(?)',
+            [doctorId, diagnosisName]
+        );
+
+        for (const [index, medicine] of medicines.entries()) {
+            await connection.query('INSERT IGNORE INTO medicines (name) VALUES (?)', [medicine.medicineName]);
+            const [medicineRows] = await connection.query('SELECT id, name FROM medicines WHERE name = ? LIMIT 1', [medicine.medicineName]);
+            const medicineMaster = medicineRows[0];
+
+            if (medicine.dosage) {
+                await connection.query('INSERT IGNORE INTO dosages (name) VALUES (?)', [medicine.dosage]);
+            }
+
+            await connection.query(
+                `
+                INSERT INTO diagnosis_medicine_templates
+                    (doctorId, diagnosisId, diagnosisName, medicineId, medicineName, dosage, daysToTake, position)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `,
+                [
+                    doctorId,
+                    diagnosis?.id || null,
+                    diagnosis?.name || diagnosisName,
+                    medicineMaster?.id || null,
+                    medicineMaster?.name || medicine.medicineName,
+                    medicine.dosage,
+                    medicine.daysToTake,
+                    index
+                ]
+            );
+        }
+
+        await connection.commit();
+        res.json({
+            message: 'Diagnosis template saved',
+            doctorId,
+            diagnosisName: diagnosis?.name || diagnosisName,
+            medicineCount: medicines.length
+        });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error saving diagnosis template:', error);
+        res.status(error.statusCode || 500).json({ message: 'Error saving diagnosis template', error: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+exports.deleteDiagnosisTemplate = async (req, res) => {
+    try {
+        assertDataEntryAccess(req);
+
+        const doctorId = normalizeDoctorId(req.query.doctorId);
+        const diagnosisName = normalizeMasterName(req.query.diagnosisName);
+
+        if (!doctorId || !diagnosisName) {
+            return res.status(400).json({ message: 'Doctor and diagnosis are required' });
+        }
+
+        const [result] = await db.query(
+            'DELETE FROM diagnosis_medicine_templates WHERE doctorId = ? AND LOWER(diagnosisName) = LOWER(?)',
+            [doctorId, diagnosisName]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        res.json({ message: 'Diagnosis template deleted' });
+    } catch (error) {
+        console.error('Error deleting diagnosis template:', error);
+        res.status(error.statusCode || 500).json({ message: 'Error deleting diagnosis template', error: error.message });
     }
 };
 

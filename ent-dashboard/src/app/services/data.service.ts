@@ -8,6 +8,27 @@ import { Medicine } from '../models/medicine.model';
 import { Diagnosis } from '../models/diagnosis.model';
 import { environment } from '../../environments/environment';
 
+export interface DiagnosisTemplateMedicine {
+  id?: number;
+  medicineId?: number | null;
+  medicineName: string;
+  dosage: string;
+  daysToTake: number;
+  position?: number;
+}
+
+export interface DiagnosisTemplateSummary {
+  diagnosisName: string;
+  medicineCount: number;
+  updatedAt?: string;
+}
+
+export interface DiagnosisTemplate {
+  doctorId: string;
+  diagnosisName: string;
+  medicines: DiagnosisTemplateMedicine[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -113,5 +134,30 @@ export class DataService {
 
   updatePatientDiagnosis(patientId: number, diagnoses: string[]): Observable<any> {
     return this.http.put(`${this.apiUrl}/patients/${patientId}/diagnosis`, { diagnoses });
+  }
+
+  getDiagnosisTemplates(doctorId: string): Observable<DiagnosisTemplateSummary[]> {
+    const params = new HttpParams().set('doctorId', doctorId);
+    return this.http.get<DiagnosisTemplateSummary[]>(`${this.apiUrl}/master/diagnosis-templates`, { params });
+  }
+
+  getDiagnosisTemplate(doctorId: string, diagnosisName: string): Observable<DiagnosisTemplate> {
+    const params = new HttpParams()
+      .set('doctorId', doctorId)
+      .set('diagnosisName', diagnosisName);
+    return this.http.get<DiagnosisTemplate>(`${this.apiUrl}/master/diagnosis-template`, { params });
+  }
+
+  saveDiagnosisTemplate(role: string, template: DiagnosisTemplate): Observable<any> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    return this.http.put(`${this.apiUrl}/master/diagnosis-template`, template, { headers });
+  }
+
+  deleteDiagnosisTemplate(role: string, doctorId: string, diagnosisName: string): Observable<any> {
+    const headers = new HttpHeaders().set('x-user-role', role);
+    const params = new HttpParams()
+      .set('doctorId', doctorId)
+      .set('diagnosisName', diagnosisName);
+    return this.http.delete(`${this.apiUrl}/master/diagnosis-template`, { headers, params });
   }
 }

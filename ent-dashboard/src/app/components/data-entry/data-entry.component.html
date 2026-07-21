@@ -6,127 +6,462 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
         <h2 class="text-xl font-bold text-gray-800">Data Entry</h2>
-        <p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-blue-600">Medicines Master</p>
+        <p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-blue-600">
+          {{ activeSection === 'medicines' ? 'Medicines Master' : activeSection === 'diagnosis' ? 'Diagnosis Medicines' : 'Choose Entry Type' }}
+        </p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
+      <div *ngIf="activeSection" class="flex flex-wrap items-center gap-2">
         <button
           pButton
           type="button"
-          icon="pi pi-download"
-          label="Export Excel"
-          class="p-button-outlined p-button-secondary"
-          [loading]="isExporting"
-          (click)="exportMedicines()">
+          icon="pi pi-arrow-left"
+          label="Change"
+          class="p-button-text p-button-secondary"
+          (click)="clearActiveSection()">
+        </button>
+        <button
+          pButton
+          type="button"
+          label="Medicines"
+          icon="pi pi-list"
+          [class.p-button-outlined]="activeSection !== 'medicines'"
+          [class.p-button-secondary]="activeSection !== 'medicines'"
+          (click)="setActiveSection('medicines')">
+        </button>
+        <button
+          pButton
+          type="button"
+          label="Diagnosis"
+          icon="pi pi-file-edit"
+          [class.p-button-outlined]="activeSection !== 'diagnosis'"
+          [class.p-button-secondary]="activeSection !== 'diagnosis'"
+          (click)="setActiveSection('diagnosis')">
         </button>
 
-        <label
-          class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-blue-600 bg-blue-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
-          <i class="pi pi-upload text-sm"></i>
-          <span>{{ isImporting ? 'Importing...' : 'Import Excel' }}</span>
-          <input
-            type="file"
-            class="hidden"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            [disabled]="isImporting"
-            (change)="importMedicines($event)" />
-        </label>
+        <ng-container *ngIf="activeSection === 'medicines'">
+          <button
+            pButton
+            type="button"
+            icon="pi pi-download"
+            label="Export Excel"
+            class="p-button-outlined p-button-secondary"
+            [loading]="isExporting"
+            (click)="exportMedicines()">
+          </button>
+
+          <label
+            class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-blue-600 bg-blue-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
+            <i class="pi pi-upload text-sm"></i>
+            <span>{{ isImporting ? 'Importing...' : 'Import Excel' }}</span>
+            <input
+              type="file"
+              class="hidden"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              [disabled]="isImporting"
+              (change)="importMedicines($event)" />
+          </label>
+        </ng-container>
       </div>
     </div>
   </header>
 
-  <div class="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(320px,420px),1fr]">
-    <section class="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div class="border-b border-gray-100 px-4 py-3">
-        <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Add Medicines</h3>
-      </div>
+  <ng-container *ngIf="activeSection; else chooseEntryType">
+    <ng-container *ngIf="activeSection === 'medicines'; else diagnosisEntry">
+    <div class="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(320px,420px),1fr]">
+      <section class="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-100 px-4 py-3">
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Add Medicines</h3>
+        </div>
 
-      <div class="flex flex-1 min-h-0 flex-col gap-3 p-4">
-        <textarea
-          pInputTextarea
-          rows="10"
-          class="w-full flex-1 resize-none text-sm"
-          [(ngModel)]="medicineText"
-          placeholder="Enter one or many medicine names"></textarea>
+        <div class="flex flex-1 min-h-0 flex-col gap-3 p-4">
+          <textarea
+            pInputTextarea
+            rows="10"
+            class="w-full flex-1 resize-none text-sm"
+            [(ngModel)]="medicineText"
+            placeholder="Enter one or many medicine names"></textarea>
 
-        <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+          <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+            <button
+              pButton
+              type="button"
+              label="Clear"
+              class="p-button-text p-button-secondary"
+              [disabled]="isSaving || !medicineText.trim()"
+              (click)="medicineText = ''">
+            </button>
+            <button
+              pButton
+              type="button"
+              icon="pi pi-plus"
+              label="Add"
+              [loading]="isSaving"
+              [disabled]="!medicineText.trim()"
+              (click)="addMedicines()">
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Medicines</h3>
+            <p class="text-xs text-gray-500">{{ filteredMedicines.length }} of {{ medicines.length }}</p>
+          </div>
+
+          <span class="relative block w-full md:w-72">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+            <input
+              pInputText
+              type="search"
+              class="w-full pl-8 text-sm"
+              [(ngModel)]="searchText"
+              placeholder="Search medicines"
+              (ngModelChange)="applyFilter()" />
+          </span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <p-table
+            [value]="filteredMedicines"
+            [loading]="isLoading"
+            [scrollable]="true"
+            scrollHeight="flex"
+            styleClass="p-datatable-sm">
+            <ng-template pTemplate="header">
+              <tr>
+                <th class="w-20">ID</th>
+                <th>Name</th>
+                <th class="w-24 text-center">Action</th>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-medicine>
+              <tr>
+                <td class="text-gray-500">{{ medicine.id || '-' }}</td>
+                <td class="font-medium text-gray-800">{{ medicine.name }}</td>
+                <td class="text-center">
+                  <button
+                    pButton
+                    type="button"
+                    icon="pi pi-trash"
+                    class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                    (click)="confirmDeleteMedicine(medicine, $event)"
+                    aria-label="Delete medicine">
+                  </button>
+                </td>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="emptymessage">
+              <tr>
+                <td colspan="3" class="py-8 text-center text-sm text-gray-400">No medicines found.</td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+      </section>
+    </div>
+    </ng-container>
+  </ng-container>
+
+  <ng-template #chooseEntryType>
+    <div class="flex flex-1 items-center justify-center overflow-y-auto p-5">
+      <div class="w-full max-w-4xl">
+        <div class="mb-5 text-center">
+          <h3 class="text-2xl font-bold text-gray-800">What do you want to manage?</h3>
+          <p class="mt-1 text-sm text-gray-500">Choose one area to keep the screen focused.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <button
-            pButton
             type="button"
-            label="Clear"
-            class="p-button-text p-button-secondary"
-            [disabled]="isSaving || !medicineText.trim()"
-            (click)="medicineText = ''">
+            class="group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-200"
+            (click)="setActiveSection('medicines')">
+            <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white">
+              <i class="pi pi-list text-lg"></i>
+            </div>
+            <div class="text-lg font-bold text-gray-800">Medicines</div>
+            <div class="mt-1 text-sm text-gray-500">Add single or multiple medicine names, import Excel, export Excel, and manage the medicine master.</div>
+            <div class="mt-4 text-xs font-bold uppercase tracking-wide text-blue-600">{{ medicines.length }} medicines</div>
           </button>
+
           <button
-            pButton
             type="button"
-            icon="pi pi-plus"
-            label="Add"
-            [loading]="isSaving"
-            [disabled]="!medicineText.trim()"
-            (click)="addMedicines()">
+            class="group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-emerald-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            (click)="setActiveSection('diagnosis')">
+            <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white">
+              <i class="pi pi-file-edit text-lg"></i>
+            </div>
+            <div class="text-lg font-bold text-gray-800">Diagnosis</div>
+            <div class="mt-1 text-sm text-gray-500">Create doctor-specific medicine sets with dosage and days for each diagnosis.</div>
+            <div class="mt-4 text-xs font-bold uppercase tracking-wide text-emerald-600">{{ diagnosisTemplates.length }} saved templates</div>
           </button>
         </div>
       </div>
-    </section>
+    </div>
+  </ng-template>
 
-    <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Medicines</h3>
-          <p class="text-xs text-gray-500">{{ filteredMedicines.length }} of {{ medicines.length }}</p>
+  <ng-template #diagnosisEntry>
+    <div class="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(360px,520px),1fr]">
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-100 px-4 py-3">
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Diagnosis Setup</h3>
+          <p class="text-xs text-gray-500">Save medicines, dosage and days for a doctor.</p>
         </div>
 
-        <span class="relative block w-full md:w-72">
-          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-          <input
-            pInputText
-            type="search"
-            class="w-full pl-8 text-sm"
-            [(ngModel)]="searchText"
-            placeholder="Search medicines"
-            (ngModelChange)="applyFilter()" />
-        </span>
-      </div>
+        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label *ngIf="currentUser?.role === 'admin'; else fixedDoctorName" class="flex flex-col gap-1 text-sm font-medium text-gray-700">
+              Doctor
+              <select
+                class="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                [(ngModel)]="selectedDoctorId"
+                (ngModelChange)="onTemplateDoctorChange()">
+                <option value="" disabled>Select doctor</option>
+                <option *ngFor="let doctor of doctors" [value]="doctor.id">{{ doctor.fullName }}</option>
+              </select>
+            </label>
 
-      <div class="min-h-0 flex-1 overflow-hidden">
-        <p-table
-          [value]="filteredMedicines"
-          [loading]="isLoading"
-          [scrollable]="true"
-          scrollHeight="flex"
-          styleClass="p-datatable-sm">
-          <ng-template pTemplate="header">
-            <tr>
-              <th class="w-20">ID</th>
-              <th>Name</th>
-              <th class="w-24 text-center">Action</th>
-            </tr>
+            <ng-template #fixedDoctorName>
+              <div class="flex flex-col gap-1 text-sm font-medium text-gray-700">
+                Doctor
+                <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+                  {{ activeDoctorName }}
+                </div>
+              </div>
+            </ng-template>
+          </div>
+
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Diagnosis Type</div>
+            <div class="flex flex-wrap items-center gap-4">
+              <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="radio"
+                  name="diagnosisEntryMode"
+                  value="existing"
+                  [(ngModel)]="diagnosisEntryMode"
+                  (ngModelChange)="onDiagnosisEntryModeChange()"
+                  class="h-4 w-4 accent-blue-600" />
+                Existing Diagnosis
+              </label>
+
+              <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="radio"
+                  name="diagnosisEntryMode"
+                  value="new"
+                  [(ngModel)]="diagnosisEntryMode"
+                  (ngModelChange)="onDiagnosisEntryModeChange()"
+                  class="h-4 w-4 accent-emerald-600" />
+                Add New Diagnosis
+              </label>
+            </div>
+          </div>
+
+          <ng-container *ngIf="diagnosisEntryMode === 'existing'; else newDiagnosisField">
+            <label class="flex flex-col gap-1 text-sm font-medium text-gray-700">
+              Existing Diagnosis
+              <select
+                class="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                [(ngModel)]="selectedDiagnosisName"
+                (ngModelChange)="loadDiagnosisTemplate($event)">
+                <option value="">Select diagnosis</option>
+                <option *ngFor="let diagnosis of diagnoses" [value]="diagnosis.name">{{ diagnosis.name }}</option>
+              </select>
+            </label>
+          </ng-container>
+
+          <ng-template #newDiagnosisField>
+            <label class="flex flex-col gap-1 text-sm font-medium text-gray-700">
+              Add New Diagnosis
+              <input
+                pInputText
+                type="text"
+                [(ngModel)]="newDiagnosisName"
+                placeholder="Type custom diagnosis name" />
+            </label>
           </ng-template>
-          <ng-template pTemplate="body" let-medicine>
-            <tr>
-              <td class="text-gray-500">{{ medicine.id || '-' }}</td>
-              <td class="font-medium text-gray-800">{{ medicine.name }}</td>
-              <td class="text-center">
-                <button
-                  pButton
-                  type="button"
-                  icon="pi pi-trash"
-                  class="p-button-rounded p-button-text p-button-danger p-button-sm"
-                  (click)="confirmDeleteMedicine(medicine, $event)"
-                  aria-label="Delete medicine">
-                </button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="3" class="py-8 text-center text-sm text-gray-400">No medicines found.</td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-    </section>
-  </div>
+
+          <div class="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            {{ isUpdatingDiagnosisTemplate ? 'Updating' : 'Saving' }} for <span class="font-bold">{{ activeDoctorName }}</span>:
+            <span class="font-bold">{{ getTemplateDiagnosisName() || 'Select or add diagnosis' }}</span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="grid grid-cols-[1fr,120px,80px,40px] gap-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+              <span>Medicine</span>
+              <span>Dosage</span>
+              <span>Days</span>
+              <span></span>
+            </div>
+
+            <div *ngFor="let medicine of templateMedicines; let i = index" class="grid grid-cols-[1fr,120px,80px,40px] gap-2">
+              <p-autoComplete
+                #templateMedAuto
+                [(ngModel)]="medicine.medicineName"
+                [suggestions]="templateMedicineSuggestions"
+                (completeMethod)="searchTemplateMedicine($event)"
+                [dropdown]="true"
+                placeholder="Medicine"
+                class="w-full block"
+                [style]="{'width':'100%'}"
+                [inputStyle]="{'width':'100%'}"
+                appendTo="body"
+                (click)="openTemplateMedicineDropdown(templateMedAuto)"
+                (onSelect)="onTemplateMedicineSelect($event)">
+                <ng-template let-item pTemplate="item">
+                  <span class="truncate">{{ item }}</span>
+                </ng-template>
+                <ng-template pTemplate="footer">
+                  <div *ngIf="isNewTemplateMedicine(medicine.medicineName)" class="border-t border-gray-100 px-3 py-2">
+                    <button
+                      type="button"
+                      pButton
+                      icon="pi pi-plus"
+                      class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                      (click)="addTemplateMedicineToMaster(medicine)">
+                      Add "{{ medicine.medicineName.trim() }}"
+                    </button>
+                  </div>
+                </ng-template>
+              </p-autoComplete>
+
+              <p-autoComplete
+                #templateDosageAuto
+                [(ngModel)]="medicine.dosage"
+                [suggestions]="templateDosageSuggestions"
+                (completeMethod)="searchTemplateDosage($event)"
+                [dropdown]="true"
+                placeholder="Dosage"
+                class="w-full block"
+                [style]="{'width':'100%'}"
+                [inputStyle]="{'width':'100%'}"
+                appendTo="body"
+                (click)="openTemplateDosageDropdown(templateDosageAuto)"
+                (onSelect)="onTemplateDosageSelect($event)">
+                <ng-template let-item pTemplate="item">
+                  <span class="truncate">{{ item }}</span>
+                </ng-template>
+                <ng-template pTemplate="footer">
+                  <div *ngIf="isNewTemplateDosage(medicine.dosage)" class="border-t border-gray-100 px-3 py-2">
+                    <button
+                      type="button"
+                      pButton
+                      icon="pi pi-plus"
+                      class="p-button-sm p-button-outlined p-button-info w-full justify-center"
+                      (click)="addTemplateDosageToMaster(medicine.dosage)">
+                      Add "{{ medicine.dosage.trim() }}"
+                    </button>
+                  </div>
+                </ng-template>
+              </p-autoComplete>
+              <input
+                pInputText
+                type="number"
+                min="1"
+                [(ngModel)]="medicine.daysToTake"
+                class="text-center" />
+              <button
+                pButton
+                type="button"
+                icon="pi pi-trash"
+                class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                (click)="removeTemplateMedicineRow(i)"
+                aria-label="Remove medicine">
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+            <button
+              pButton
+              type="button"
+              icon="pi pi-plus"
+              label="Add Row"
+              class="p-button-outlined p-button-secondary"
+              (click)="addTemplateMedicineRow()">
+            </button>
+
+            <button
+              pButton
+              type="button"
+              icon="pi pi-save"
+              [label]="isUpdatingDiagnosisTemplate ? 'Update Diagnosis' : 'Save Diagnosis'"
+              class="p-button-success"
+              style="background:#16a34a;border-color:#16a34a;color:#fff"
+              [loading]="isTemplateSaving"
+              [disabled]="!selectedDoctorId || !getTemplateDiagnosisName()"
+              (click)="saveDiagnosisTemplate()">
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wide text-gray-600">Saved Diagnosis Medicines</h3>
+            <p class="text-xs text-gray-500">{{ filteredDiagnosisTemplates.length }} template(s)</p>
+          </div>
+
+          <span class="relative block w-full md:w-72">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+            <input
+              pInputText
+              type="search"
+              class="w-full pl-8 text-sm"
+              [(ngModel)]="templateSearchText"
+              placeholder="Search diagnosis" />
+          </span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <p-table
+            [value]="filteredDiagnosisTemplates"
+            [loading]="isTemplateLoading"
+            [scrollable]="true"
+            scrollHeight="flex"
+            styleClass="p-datatable-sm">
+            <ng-template pTemplate="header">
+              <tr>
+                <th>Diagnosis</th>
+                <th class="w-32 text-center">Medicines</th>
+                <th class="w-28 text-center">Action</th>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-template>
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="font-semibold text-blue-700 hover:underline"
+                    (click)="loadDiagnosisTemplate(template.diagnosisName)">
+                    {{ template.diagnosisName }}
+                  </button>
+                </td>
+                <td class="text-center text-gray-600">{{ template.medicineCount }}</td>
+                <td class="text-center">
+                  <button
+                    pButton
+                    type="button"
+                    icon="pi pi-trash"
+                    class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                    (click)="confirmDeleteDiagnosisTemplate(template, $event)"
+                    aria-label="Delete diagnosis template">
+                  </button>
+                </td>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="emptymessage">
+              <tr>
+                <td colspan="3" class="py-8 text-center text-sm text-gray-400">No diagnosis templates found.</td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+      </section>
+    </div>
+  </ng-template>
 </div>

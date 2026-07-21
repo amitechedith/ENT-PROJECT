@@ -291,7 +291,28 @@ const createTables = async () => {
         await ensureUpdatedAt(connection, 'patient_diagnoses');
         console.log('Patient Diagnoses table created/verified.');
 
-        // 9. Export Runs Table
+        // 9. Doctor diagnosis medicine templates
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS diagnosis_medicine_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                doctorId VARCHAR(255) NOT NULL,
+                diagnosisId INT NULL,
+                diagnosisName VARCHAR(255) NOT NULL,
+                medicineId INT NULL,
+                medicineName VARCHAR(255) NOT NULL,
+                dosage VARCHAR(100),
+                daysToTake INT DEFAULT 5,
+                position INT DEFAULT 0,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (diagnosisId) REFERENCES diagnoses(id) ON DELETE SET NULL,
+                FOREIGN KEY (medicineId) REFERENCES medicines(id) ON DELETE SET NULL
+            )
+        `);
+        await ensureUpdatedAt(connection, 'diagnosis_medicine_templates');
+        await ensureIndex(connection, 'diagnosis_medicine_templates', 'idx_diagnosis_templates_doctor_diagnosis', 'KEY idx_diagnosis_templates_doctor_diagnosis (doctorId, diagnosisName)');
+        console.log('Diagnosis medicine templates table created/verified.');
+
+        // 10. Export Runs Table
         await connection.query(`
             CREATE TABLE IF NOT EXISTS export_runs (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -307,7 +328,7 @@ const createTables = async () => {
         `);
         console.log('Export Runs table created/verified.');
 
-        // 10. Role Access Controls Table
+        // 11. Role Access Controls Table
         await connection.query(`
             CREATE TABLE IF NOT EXISTS role_access_controls (
                 doctorId VARCHAR(255) NOT NULL DEFAULT 'global',
