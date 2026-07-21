@@ -27,6 +27,7 @@ export class BillingPageComponent implements OnInit, OnDestroy {
   private hasAutoPrinted = false;
   private printReturnTo = '';
   private printReturnDate = '';
+  private printReturnPatientId: number | null = null;
   private printReturnTimer?: number;
   private printMessageHandler?: (event: MessageEvent) => void;
 
@@ -45,6 +46,7 @@ export class BillingPageComponent implements OnInit, OnDestroy {
     this.shouldAutoPrint = this.route.snapshot.queryParamMap.get('autoprint') === '1';
     this.printReturnTo = this.route.snapshot.queryParamMap.get('returnTo') || '';
     this.printReturnDate = this.route.snapshot.queryParamMap.get('returnDate') || '';
+    this.printReturnPatientId = this.pendingPatientId;
 
     this.loadDoctorProfile();
     this.bootstrapPatients();
@@ -364,20 +366,30 @@ export class BillingPageComponent implements OnInit, OnDestroy {
   }
 
   private watchPrintWindowForReturn(printWindow: Window): void {
-    if (this.printReturnTo !== 'reception') {
+    if (!['reception', 'doctor'].includes(this.printReturnTo)) {
       return;
     }
 
     this.clearPrintReturnWatch();
     let hasReturned = false;
 
-    const returnToReception = () => {
+    const returnToSourcePage = () => {
       if (hasReturned) {
         return;
       }
 
       hasReturned = true;
       this.clearPrintReturnWatch();
+      if (this.printReturnTo === 'doctor') {
+        this.router.navigate(['/doctor/dashboard'], {
+          queryParams: {
+            ...(this.printReturnPatientId ? { patientId: this.printReturnPatientId } : {}),
+            ...(this.printReturnDate ? { date: this.printReturnDate } : {})
+          }
+        });
+        return;
+      }
+
       this.router.navigate(['/reception'], {
         queryParams: this.printReturnDate ? { date: this.printReturnDate } : {}
       });
@@ -385,14 +397,14 @@ export class BillingPageComponent implements OnInit, OnDestroy {
 
     this.printMessageHandler = (event: MessageEvent) => {
       if (event.source === printWindow && event.data?.type === 'prescription-print-complete') {
-        returnToReception();
+        returnToSourcePage();
       }
     };
 
     window.addEventListener('message', this.printMessageHandler);
     this.printReturnTimer = window.setInterval(() => {
       if (printWindow.closed) {
-        returnToReception();
+        returnToSourcePage();
       }
     }, 500);
   }

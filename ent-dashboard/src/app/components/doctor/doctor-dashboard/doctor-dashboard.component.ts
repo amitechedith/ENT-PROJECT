@@ -56,6 +56,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
   private pendingPatientId: number | null = null;
   private realtimeSubscription?: Subscription;
   private savingPatientId: number | null = null;
+  private hasRouteSelectedDate = false;
 
   medicines: any[] = [];
   filteredMedicines: any[] = []; // For AutoComplete
@@ -96,7 +97,12 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     const patientIdParam = this.route.snapshot.queryParamMap.get('patientId');
     const patientId = Number(patientIdParam);
+    const selectedDateParam = this.route.snapshot.queryParamMap.get('date');
     this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+    if (selectedDateParam) {
+      this.selectedDate = this.toLocalDate(selectedDateParam);
+      this.hasRouteSelectedDate = true;
+    }
 
     this.loadData();
     this.realtimeSubscription = this.realtimeService.connect().subscribe(event => this.handleRealtimeEvent(event));
@@ -178,7 +184,7 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     if (this.pendingPatientId) {
       this.doctorData.getPatientById(this.pendingPatientId).subscribe({
         next: (patient) => {
-          if (patient?.latestVisitDate) {
+          if (patient?.latestVisitDate && !this.hasRouteSelectedDate) {
             this.selectedDate = this.toLocalDate(patient.latestVisitDate);
           }
           this.loadPatientsForSelectedDate(patient?.id ?? null);
@@ -369,7 +375,12 @@ export class DoctorDashboardComponent implements OnInit, OnDestroy {
     }
 
     this.router.navigate(['/billing'], {
-      queryParams: { patientId: targetPatient.id }
+      queryParams: {
+        patientId: targetPatient.id,
+        autoprint: 1,
+        returnTo: 'doctor',
+        returnDate: this.getSelectedDateKey()
+      }
     });
   }
 

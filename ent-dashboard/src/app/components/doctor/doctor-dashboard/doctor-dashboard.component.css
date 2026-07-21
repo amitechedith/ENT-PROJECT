@@ -45,6 +45,21 @@
     padding-bottom: 0.45rem;
 }
 
+:host ::ng-deep .doctor-complete-button {
+    background: #16a34a !important;
+    border-color: #16a34a !important;
+    color: #ffffff !important;
+}
+
+:host ::ng-deep .doctor-complete-button .p-button-icon {
+    color: #ffffff !important;
+}
+
+:host ::ng-deep .doctor-complete-button:not(:disabled):hover {
+    background: #15803d !important;
+    border-color: #15803d !important;
+}
+
 .tiny-delete-btn {
     width: 1.6rem !important;
     height: 1.6rem !important;

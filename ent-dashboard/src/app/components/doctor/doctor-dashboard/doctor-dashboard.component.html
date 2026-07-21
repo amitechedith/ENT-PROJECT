@@ -1,4 +1,4 @@
-<p-toast></p-toast>
+<p-toast position="center"></p-toast>
 <div class="flex h-full min-h-0 bg-gray-50 overflow-hidden">
   <!-- Sidebar -->
   <aside class="w-64 bg-white border-r border-gray-200 flex flex-col h-full min-h-0 overflow-hidden">
@@ -132,7 +132,7 @@
           <button pButton label="Print Rx" icon="pi pi-print" class="p-button-outlined p-button-secondary"
             [disabled]="!selectedPatient" (click)="goToBilling()" pTooltip="Open prescription page for this patient"></button>
 
-          <button pButton label="Complete" icon="pi pi-check" class="p-button-success" (click)="saveChanges()"></button>
+          <button pButton label="Complete" icon="pi pi-check" class="p-button-success doctor-complete-button" (click)="saveChanges()"></button>
         </div>
       </header>
 
