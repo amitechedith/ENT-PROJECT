@@ -215,9 +215,10 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     this.patient = this.createDefaultPatient();
   }
 
-  private openBlankPatientForm(): void {
+  private openBlankPatientForm(mobile = ''): void {
     this.showAddForm = true;
     this.patient = this.createDefaultPatient();
+    this.patient.mobile = mobile;
     this.patient.latestVisitDate = this.getSelectedDateKey();
     this.assignNextToken();
     this.focusNameInput();
@@ -248,11 +249,7 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
         this.loadingPatientCode = false;
 
         if (patients.length === 0) {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'Patient Not Found',
-            detail: 'No patient found for this mobile number.'
-          });
+          this.openBlankPatientForm(mobile);
           return;
         }
 
@@ -266,10 +263,15 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.loadingPatientCode = false;
+        if (err.status === 404) {
+          this.openBlankPatientForm(mobile);
+          return;
+        }
+
         this.messageService.add({
-          severity: 'warn',
-          summary: 'Patient Not Found',
-          detail: err.error?.message || 'No patient found for this mobile number.'
+          severity: 'error',
+          summary: 'Lookup Failed',
+          detail: err.error?.message || 'Unable to search this mobile number.'
         });
       }
     });
