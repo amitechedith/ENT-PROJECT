@@ -20,7 +20,7 @@ import { DatePipe } from '@angular/common';
 import { PatientService } from '../../../services/patient.service';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { RealtimeEvent, RealtimeService } from '../../../services/realtime.service';
 
@@ -110,10 +110,16 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     private datePipe: DatePipe,
     private authService: AuthService,
     private router: Router,
+    private route: ActivatedRoute,
     private realtimeService: RealtimeService
   ) { }
 
   ngOnInit() {
+    const selectedDateParam = this.route.snapshot.queryParamMap.get('date');
+    if (selectedDateParam) {
+      this.selectedDate = this.toLocalDate(selectedDateParam);
+    }
+
     this.loadDefaultConsultationFee();
     this.loadDateSummaries();
     this.loadPatientsForSelectedDate();
@@ -751,7 +757,12 @@ export class PatientRegistrationComponent implements OnInit, OnDestroy {
     }
 
     this.router.navigate(['/billing'], {
-      queryParams: { patientId: patient.id, autoprint: 1 }
+      queryParams: {
+        patientId: patient.id,
+        autoprint: 1,
+        returnTo: 'reception',
+        returnDate: this.getSelectedDateKey()
+      }
     });
   }
 }

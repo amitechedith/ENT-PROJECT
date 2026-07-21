@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,7 +14,7 @@ import { User } from '../../../models/user.model';
   providers: [DatePipe],
   templateUrl: './billing-page.component.html'
 })
-export class BillingPageComponent implements OnInit {
+export class BillingPageComponent implements OnInit, OnDestroy {
   allPatients: any[] = [];
   displayedPatients: any[] = [];
   selectedPatient: any; // The patient to print
@@ -25,6 +25,10 @@ export class BillingPageComponent implements OnInit {
   private loadedPrescriptionPatientIds = new Set<number>();
   private shouldAutoPrint = false;
   private hasAutoPrinted = false;
+  private printReturnTo = '';
+  private printReturnDate = '';
+  private printReturnTimer?: number;
+  private printMessageHandler?: (event: MessageEvent) => void;
 
   constructor(
     private doctorData: DoctorDataService,
@@ -39,9 +43,15 @@ export class BillingPageComponent implements OnInit {
     const patientId = Number(patientIdParam);
     this.pendingPatientId = Number.isFinite(patientId) && patientId > 0 ? patientId : null;
     this.shouldAutoPrint = this.route.snapshot.queryParamMap.get('autoprint') === '1';
+    this.printReturnTo = this.route.snapshot.queryParamMap.get('returnTo') || '';
+    this.printReturnDate = this.route.snapshot.queryParamMap.get('returnDate') || '';
 
     this.loadDoctorProfile();
     this.bootstrapPatients();
+  }
+
+  ngOnDestroy(): void {
+    this.clearPrintReturnWatch();
   }
 
   loadDoctorProfile() {
@@ -240,6 +250,7 @@ export class BillingPageComponent implements OnInit {
     const WindowPrt = window.open('', '', 'left=0,top=0,width=900,height=900,toolbar=0,scrollbars=0,status=0');
 
     if (WindowPrt && printContent) {
+      this.watchPrintWindowForReturn(WindowPrt);
       WindowPrt.document.write(`
         <html>
           <head>
@@ -311,6 +322,22 @@ export class BillingPageComponent implements OnInit {
                // Remove print buttons from the cloned content
                const btns = document.querySelectorAll('button');
                btns.forEach(btn => btn.remove());
+
+               let didNotifyPrintDone = false;
+               const notifyPrintDone = () => {
+                 if (didNotifyPrintDone) {
+                   return;
+                 }
+
+                 didNotifyPrintDone = true;
+                 try {
+                   window.opener && window.opener.postMessage({ type: 'prescription-print-complete' }, '*');
+                 } catch (error) {}
+
+                 setTimeout(() => window.close(), 100);
+               };
+
+               window.addEventListener('afterprint', notifyPrintDone);
                
                // Wait for images to resolve so Windows print preview does not use natural image sizes.
                Promise.all(Array.from(document.images).map((img) => {
@@ -324,7 +351,7 @@ export class BillingPageComponent implements OnInit {
                })).then(() => {
                  setTimeout(() => {
                    window.print();
-                   window.close();
+                   setTimeout(notifyPrintDone, 1500);
                  }, 300);
                });
             </script>
@@ -333,6 +360,52 @@ export class BillingPageComponent implements OnInit {
       `);
       WindowPrt.document.close();
       WindowPrt.focus();
+    }
+  }
+
+  private watchPrintWindowForReturn(printWindow: Window): void {
+    if (this.printReturnTo !== 'reception') {
+      return;
+    }
+
+    this.clearPrintReturnWatch();
+    let hasReturned = false;
+
+    const returnToReception = () => {
+      if (hasReturned) {
+        return;
+      }
+
+      hasReturned = true;
+      this.clearPrintReturnWatch();
+      this.router.navigate(['/reception'], {
+        queryParams: this.printReturnDate ? { date: this.printReturnDate } : {}
+      });
+    };
+
+    this.printMessageHandler = (event: MessageEvent) => {
+      if (event.source === printWindow && event.data?.type === 'prescription-print-complete') {
+        returnToReception();
+      }
+    };
+
+    window.addEventListener('message', this.printMessageHandler);
+    this.printReturnTimer = window.setInterval(() => {
+      if (printWindow.closed) {
+        returnToReception();
+      }
+    }, 500);
+  }
+
+  private clearPrintReturnWatch(): void {
+    if (this.printMessageHandler) {
+      window.removeEventListener('message', this.printMessageHandler);
+      this.printMessageHandler = undefined;
+    }
+
+    if (this.printReturnTimer) {
+      window.clearInterval(this.printReturnTimer);
+      this.printReturnTimer = undefined;
     }
   }
 
